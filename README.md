@@ -155,23 +155,28 @@ policybench analyze --runs-dir results/local/no_tools/runs --output-dir results/
 
 Each repeat asks the models again. The command keeps the LiteLLM disk cache on,
 but each repeat looks up and stores its answers under its own cache namespace
-(`repeat=run_000`, `repeat=run_001`, ...), so no repeat gets another repeat's
-answers, or those of an `eval-no-tools` run.
+(`repeat=run_000`, `repeat=run_001`, ...), so no repeat looks up another
+repeat's answers, or those of an `eval-no-tools` run.
 
 Running the command again reuses what each repeat already has. Into the same
-output directory, a repeat resumes from its CSV: it keeps the households the
-file already answers in full and sends requests for the rest. Into a new
-output directory with the same cache directory, a repeat looks for its answers
-under its own namespace and asks the model only for those the cache does not
-find. To draw a new, independent set of repeats, use a new output directory
-and point `POLICYBENCH_CACHE_DIR` at a new directory.
+output directory, a repeat resumes from its CSV before it consults the cache.
+The batch runner keeps each household for which the file has a row for every
+requested output, with no infrastructure error (and an explanation column when
+explanations are on), even if some of those rows hold no parsed answer; it
+asks again for the other households. With `--single-output` it keeps every row
+without an infrastructure error. Into a new output directory with the same
+cache directory, a repeat looks for its answers under its own namespace and
+asks the model for those the cache does not find. To draw a new, independent
+set of repeats, use a new output directory and point `POLICYBENCH_CACHE_DIR`
+at a new directory.
 
 After each repeat the command prints how many provider responses and cache
-replays the repeat's rows record, and says when the repeat resumed from an
-existing file, whose stored rows those counts include. It writes
-`repeated_run.json` beside the run files and refuses an output directory that
-holds `run_*.csv` files without it: those repeats shared one cache namespace,
-so the repeats after the first may be replays of it.
+replays the repeat's rows record and, when it kept rows from an existing file,
+how many of those the kept rows recorded when they were written. It records
+each repeat in `repeated_run.json` beside the run files before the repeat
+writes anything, and refuses an output directory holding a `run_*.csv` file
+that the record does not list: nothing shows such a file was written under its
+own cache namespace, so its rows may be replays of another repeat's.
 
 `policybench reference-outputs` writes PolicyEngine reference outputs, not
 administrative truth. It also writes `results/local/scenarios.csv`, and the eval

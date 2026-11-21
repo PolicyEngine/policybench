@@ -1124,7 +1124,7 @@ def main():
     # commands bypass cache by default, otherwise they can replay the same bad
     # provider response indefinitely. eval-no-tools-repeated gives each repeat
     # its own cache namespace (run_repeated_no_tools_eval), so a repeat never
-    # gets another repeat's responses.
+    # looks up another repeat's responses.
     if args.command in {
         "eval-no-tools",
         "eval-no-tools-repeated",

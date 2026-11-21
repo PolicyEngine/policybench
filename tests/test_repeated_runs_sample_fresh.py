@@ -2,19 +2,26 @@
 
 ``policybench eval-no-tools-repeated`` turns the LiteLLM disk cache on, and
 every repeat builds the same requests. LiteLLM keys the cache on the request,
-so repeats 2..N used to get repeat 1's responses back from the cache and the
-run reported no run-to-run variation. Each repeat now runs under its own
-cache namespace (``_OwnCacheNamespace``).
+so repeats 2..N used to get repeat 1's responses back from the cache for
+every request whose stored answer a rebuilt request finds, and the run
+reported no run-to-run variation. Each repeat now runs under its own cache
+namespace (``_OwnCacheNamespace``).
 
-The tests that send requests run the harness's repeated path through LiteLLM's
-real request path and the harness's real disk cache (``enable_cache`` in a
-temporary directory). They replace only the wire: ``httpx.Client.send``
-answers from this file with a value that names the call, and a socket
-connection fails the test. Those tests also count requests per repeat and
-record cache keys by wrapping the runner and the disk cache. Three tests send
-nothing: the two that check the namespace comes back replace the runner (the
-property test replaces the cache object too), and one checks the directory
-guard.
+Most tests run the harness's repeated path through LiteLLM's real request
+path and replace only the wire: ``httpx.Client.send`` answers from this file
+with a value that names the call. All but the no-cache control use the
+harness's real disk cache (``enable_cache`` in a temporary directory). The
+autouse fixture blocks sockets while each test runs and gives every request
+one attempt (``MAX_ATTEMPTS``). It cannot reach LiteLLM's model-cost map,
+which LiteLLM loads when it is first imported, before any fixture; set
+``LITELLM_LOCAL_MODEL_COST_MAP=True`` to keep that load off the network.
+Fixtures count requests per repeat and, where a test asks for them, record
+the cache keys each repeat looks up and stores.
+
+Seven tests send no request: the namespace's spelling, the two directory
+guards, the response counter, the overlap guard, and the two that check the
+namespace comes back (they replace the runner; the property test replaces
+the cache object too).
 """
 
 from __future__ import annotations
@@ -35,15 +42,17 @@ import policybench.eval_no_tools as eval_no_tools
 from policybench.cache import enable_cache
 from policybench.config import MODELS
 from policybench.eval_no_tools import (
+    EXPLANATION_FUNCTION_NAME,
     REASONING_EFFORT_OVERRIDE_ENV,
     REPEATED_RUN_MARKER,
     _answer_contract_for_model,
+    _OwnCacheNamespace,
     _repeat_cache_namespace,
     _response_sources,
     _uses_responses_api,
     run_repeated_no_tools_eval,
 )
-from policybench.model_cards import MODEL_CARDS
+from policybench.model_cards import MODEL_CARDS, explanation_chunk_size_for
 from policybench.scenarios import Person, Scenario
 
 SCENARIO = Scenario(
@@ -98,6 +107,13 @@ for _model_id in sorted(card.litellm_id for card in MODEL_CARDS.values()):
 # edit here.
 REPRESENTATIVES = [ids[0] for _, ids in sorted(GROUPS.items())]
 assert REPRESENTATIVES, "no model card to run the repeat tests on"
+# The follow-up-path tests read the requested outputs from the request's
+# Anthropic tool schema, and need a card that asks for every output at once.
+ANTHROPIC_TOOL = next(
+    model_id
+    for model_id in GROUPS["anthropic / tool"]
+    if explanation_chunk_size_for(model_id) is None
+)
 
 
 def _answer(call: int) -> dict:
@@ -243,6 +259,93 @@ def _canned_answer(path: str, body: dict, call: int) -> dict:
     raise AssertionError(f"the stub has no answer for the path {path}")
 
 
+def _anthropic_message(call: int, body: dict, content: list, stop_reason: str):
+    return {
+        "id": f"stub-{call}",
+        "type": "message",
+        "role": "assistant",
+        "model": body.get("model", "stub"),
+        "content": content,
+        "stop_reason": stop_reason,
+        "stop_sequence": None,
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }
+
+
+class _FollowUpAnswers:
+    """Anthropic tool answers that send each household down one follow-up path.
+
+    - ``repair``: a request for several outputs gets the first one only, so
+      the harness asks again for the rest (a repair round).
+    - ``chunk``: plain answers; the test sets a chunk size of one output.
+    - ``escalation``: a request at the first completion budget it sees stops
+      on the length limit with nothing in it, so the harness asks again with
+      a larger budget.
+    - ``explanation``: values with blank explanations; with no repair round
+      left, the harness asks for the explanations alone.
+
+    Each household's answer depends only on the request, not on the order
+    requests arrive in, so a repeat that asks again takes the same path.
+    """
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        self.first_budget: int | None = None
+        self.values: dict[str, float] = {}
+
+    def __call__(self, url_path: str, body: dict, call: int) -> dict:
+        assert url_path.endswith("/messages"), url_path
+        (tool,) = body["tools"]
+        schema = tool["input_schema"]["properties"]
+        value = 1000 + call
+        if tool["name"] == EXPLANATION_FUNCTION_NAME:
+            explanations = {
+                variable: f"Call {call}. value = {self.values[variable]:g}"
+                for variable in schema
+            }
+            return _anthropic_message(
+                call,
+                body,
+                [
+                    {
+                        "type": "tool_use",
+                        "id": f"toolu_{call}",
+                        "name": tool["name"],
+                        "input": explanations,
+                    }
+                ],
+                "tool_use",
+            )
+        asked = list(schema["outputs"]["properties"])
+        if self.path == "escalation":
+            if self.first_budget is None:
+                self.first_budget = body["max_tokens"]
+            if body["max_tokens"] == self.first_budget:
+                return _anthropic_message(call, body, [], "max_tokens")
+        if self.path == "repair":
+            asked = asked[:1]
+        self.values.update(dict.fromkeys(asked, value))
+        explanation = (
+            "" if self.path == "explanation" else f"Call {call}. value = {value}"
+        )
+        outputs = {
+            variable: {"value": value, "explanation": explanation} for variable in asked
+        }
+        return _anthropic_message(
+            call,
+            body,
+            [
+                {
+                    "type": "tool_use",
+                    "id": f"toolu_{call}",
+                    "name": tool["name"],
+                    "input": {"outputs": outputs},
+                }
+            ],
+            "tool_use",
+        )
+
+
 @pytest.fixture(autouse=True)
 def offline(monkeypatch):
     """No key, no socket, no sensitivity knob, one attempt per request."""
@@ -259,9 +362,11 @@ def offline(monkeypatch):
     monkeypatch.setattr(eval_no_tools, "_PROCESS_REASONING_EFFORT_OVERRIDE", [])
     monkeypatch.setattr(eval_no_tools, "MAX_ATTEMPTS", 1)
     monkeypatch.setattr(litellm, "drop_params", False)
-    # Turning the cache on registers LiteLLM callbacks; give them back too.
-    for name in ("input_callback", "success_callback", "_async_success_callback"):
-        monkeypatch.setattr(litellm, name, list(getattr(litellm, name)))
+    # Turning the cache on registers LiteLLM callbacks, and LiteLLM moves
+    # callbacks between its lists; give every list back.
+    for name, value in list(vars(litellm).items()):
+        if "callback" in name and isinstance(value, list):
+            monkeypatch.setattr(litellm, name, list(value))
     # LiteLLM remembers which callbacks it has set up in this module global.
     monkeypatch.setattr(
         litellm.utils, "callback_list", list(litellm.utils.callback_list or [])
@@ -277,19 +382,27 @@ def safe_umask():
     os.umask(previous)
 
 
+class _Wire(list):
+    """The requests LiteLLM put on the wire.
+
+    ``answer(path, body, call)`` builds each response: a provider-shaped body,
+    or a ``(status, body)`` pair for an error.
+    """
+
+    answer = staticmethod(_canned_answer)
+
+
 @pytest.fixture
-def wire(monkeypatch) -> list[dict]:
+def wire(monkeypatch) -> _Wire:
     """The requests LiteLLM put on the wire, each answered from this file."""
-    sent: list[dict] = []
+    sent = _Wire()
 
     def send(self, request, **_kwargs):
         body = json.loads(request.content)
         sent.append({"path": request.url.path, "body": body})
-        return httpx.Response(
-            200,
-            json=_canned_answer(request.url.path, body, len(sent)),
-            request=request,
-        )
+        answer = sent.answer(request.url.path, body, len(sent))
+        status, payload = answer if isinstance(answer, tuple) else (200, answer)
+        return httpx.Response(status, json=payload, request=request)
 
     def no_async_send(self, request, **_kwargs):
         raise AssertionError("the harness sends no asynchronous request")
@@ -426,24 +539,104 @@ def test_the_repeat_namespace_is_spelled_out():
     assert _repeat_cache_namespace("", "run_007") == "repeat=run_007"
 
 
-def test_a_single_output_repeat_asks_again(disk_cache, sent_per_repeat, tmp_path):
+def test_a_single_output_repeat_asks_again(
+    disk_cache, sent_per_repeat, keys_per_repeat, tmp_path
+):
+    base = disk_cache.namespace
+
     frame = _run(OPUS, tmp_path / "runs", single_output=True)
 
     _assert_answered(frame)
-    assert sent_per_repeat["run_000"] > 0
-    assert sent_per_repeat["run_001"] == sent_per_repeat["run_000"]
+    # One request per output, so the single-output runner ran, not the batch
+    # runner (one request for the household).
+    assert sent_per_repeat == {"run_000": len(VARIABLES), "run_001": len(VARIABLES)}
     assert _calls(frame, "run_001")["cache_hit_calls"].sum() == 0
-    assert _raw(frame, "run_001") != _raw(frame, "run_000")
+    assert set(_raw(frame, "run_001")).isdisjoint(_raw(frame, "run_000"))
+    # Both repeats used the disk cache, each under its own namespace.
+    assert set(keys_per_repeat) == {"run_000", "run_001"}
+    for run_id, used in keys_per_repeat.items():
+        assert {kind for kind, _ in used} == {"lookup", "store"}
+        prefix = f"{_repeat_cache_namespace(base, run_id)}:"
+        assert all(key.startswith(prefix) for _, key in used), run_id
 
 
-def _a_rebuilt_request_replays(model_id: str, output_dir, wire: list) -> bool:
-    """Whether a plain run's rebuilt requests find their stored answers.
+def _request_shape(body: dict) -> tuple[str, tuple[str, ...], int]:
+    """An Anthropic tool request's tool, the outputs it asks for, and its
+    completion budget."""
+    (tool,) = body["tools"]
+    schema = tool["input_schema"]["properties"]
+    if tool["name"] == EXPLANATION_FUNCTION_NAME:
+        return "explanation", tuple(schema), body["max_tokens"]
+    return "answer", tuple(schema["outputs"]["properties"]), body["max_tokens"]
+
+
+@pytest.mark.parametrize("path", ["repair", "chunk", "escalation", "explanation"])
+def test_a_follow_up_request_asks_again_under_its_repeats_namespace(
+    path, monkeypatch, disk_cache, wire, sent_per_repeat, keys_per_repeat, tmp_path
+):
+    """A repair round, explanation chunks, a larger completion budget and
+    the explanation-only request each go out again in repeat 2, under its
+    namespace."""
+    if path == "chunk":
+        monkeypatch.setattr(
+            eval_no_tools, "_required_explanation_chunk_size", lambda *_a, **_k: 1
+        )
+    if path == "explanation":
+        monkeypatch.setattr(eval_no_tools, "MAX_REPAIR_ROUNDS", 0)
+    wire.answer = _FollowUpAnswers(path)
+    base = disk_cache.namespace
+
+    frame = _run(ANTHROPIC_TOOL, tmp_path / "runs")
+
+    _assert_answered(frame)
+    assert frame["explanation"].fillna("").str.strip().ne("").all()
+    # Two requests a repeat: the household's first and the follow-up the
+    # path names. A plain answer would take one.
+    assert sent_per_repeat == {"run_000": 2, "run_001": 2}
+    shapes = [_request_shape(request["body"]) for request in wire]
+    first, follow_up = {
+        "repair": (("answer", ("snap", "ssi")), ("answer", ("ssi",))),
+        "chunk": (("answer", ("snap",)), ("answer", ("ssi",))),
+        "escalation": (("answer", ("snap", "ssi")), ("answer", ("snap", "ssi"))),
+        "explanation": (("answer", ("snap", "ssi")), ("explanation", ("snap", "ssi"))),
+    }[path]
+    assert [shape[:2] for shape in shapes] == [first, follow_up] * 2
+    budgets = [shape[2] for shape in shapes]
+    if path == "escalation":
+        assert budgets[1] > budgets[0] and budgets[2:] == budgets[:2]
+    second = _calls(frame, "run_001")
+    assert second["live_calls"].sum() == 2
+    assert second["cache_hit_calls"].sum() == 0
+    assert set(_raw(frame, "run_001")).isdisjoint(_raw(frame, "run_000"))
+    for run_id, used in keys_per_repeat.items():
+        assert sum(kind == "lookup" for kind, _ in used) == 2, run_id
+        prefix = f"{_repeat_cache_namespace(base, run_id)}:"
+        assert all(key.startswith(prefix) for _, key in used), run_id
+
+
+def _a_rebuilt_request_replays(
+    model_id: str, output_dir, wire: list, monkeypatch
+) -> tuple[bool, bool]:
+    """Whether a plain run's rebuilt requests find their stored answers, and
+    whether the harness handed LiteLLM a cache key for every request.
 
     Two ``eval-no-tools`` runs of the same household on the cache, outside any
     repeat. LiteLLM rewrites a ``gemini/`` tool request's schema between its
-    cache lookup and its store, so until the harness pins the cache key that
-    one group's rebuilt request never finds its answer, repeat or not.
+    cache lookup and its store, so unless the harness pins each request's
+    cache key, that group's rebuilt request never finds its answer, repeat or
+    not.
     """
+    keyed: list[bool] = []
+
+    def spying(request_fn):
+        def request(*args, **kwargs):
+            keyed.append("cache_key" in kwargs)
+            return request_fn(*args, **kwargs)
+
+        return request
+
+    for name in ("completion", "responses"):
+        monkeypatch.setattr(eval_no_tools, name, spying(getattr(eval_no_tools, name)))
 
     def plain(name: str) -> int:
         before = len(wire)
@@ -457,18 +650,23 @@ def _a_rebuilt_request_replays(model_id: str, output_dir, wire: list) -> bool:
 
     first, second = plain("plain_1"), plain("plain_2")
     assert first > 0 and second in (0, first)
-    return second == 0
+    assert keyed
+    return second == 0, all(keyed)
 
 
 @pytest.mark.parametrize("model_id", REPRESENTATIVES)
 def test_a_rerun_replays_each_repeats_own_responses(
-    model_id, disk_cache, sent_per_repeat, wire, tmp_path, capsys
+    model_id, disk_cache, sent_per_repeat, wire, tmp_path, capsys, monkeypatch
 ):
     """A rerun's repeats replay exactly when a plain rebuilt request does, and
     then each replays its own answers. The namespace scopes the cache; it
     does not decide whether the cache can find an answer."""
-    replays = _a_rebuilt_request_replays(model_id, tmp_path, wire)
-    assert replays or _group(model_id) == "gemini / tool"
+    replays, keys_pinned = _a_rebuilt_request_replays(
+        model_id, tmp_path, wire, monkeypatch
+    )
+    # Only a gemini/ tool request may fail to replay, and only while the
+    # harness leaves the cache key to LiteLLM.
+    assert replays or (_group(model_id) == "gemini / tool" and not keys_pinned)
     first = _run(model_id, tmp_path / "first")
     _assert_answered(first)
     one_repeat = sent_per_repeat["run_000"]
@@ -493,11 +691,10 @@ def test_a_rerun_replays_each_repeats_own_responses(
         "run_002": one_repeat,
     }
     assert len(wire) - sent_before == 2 * rerun + one_repeat
-    assert _raw(again, "run_002") not in (
-        _raw(again, "run_000"),
-        _raw(again, "run_001"),
+    assert set(_raw(again, "run_002")).isdisjoint(
+        _raw(again, "run_000") + _raw(again, "run_001")
     )
-    assert _raw(again, "run_001") != _raw(again, "run_000")
+    assert set(_raw(again, "run_001")).isdisjoint(_raw(again, "run_000"))
     out = capsys.readouterr().out
     assert f"run_002: provider responses {one_repeat}, cache replays 0\n" in out
     if replays:
@@ -519,7 +716,7 @@ def test_no_repeat_ever_returns_another_repeats_responses(
     again = _run(model_id, tmp_path / "again", repeats=3)
 
     answers = {
-        (label, run_id): _raw(frame, run_id)
+        (label, run_id): set(_raw(frame, run_id))
         for label, frame in (("first", first), ("again", again))
         for run_id in sorted(set(frame["run_id"]))
     }
@@ -528,8 +725,10 @@ def test_no_repeat_ever_returns_another_repeats_responses(
     for (label, run_id), raw in answers.items():
         for (other_label, other_id), other in answers.items():
             if other_id != run_id:
-                assert raw != other, (
-                    f"{label} {run_id} returned {other_label} {other_id}'s responses"
+                shared = raw & other
+                assert not shared, (
+                    f"{label} {run_id} returned {len(shared)} of "
+                    f"{other_label} {other_id}'s responses"
                 )
 
 
@@ -593,17 +792,103 @@ def test_a_rerun_into_the_same_directory_resumes_and_says_so(
         assert _raw(again, run_id) == _raw(first, run_id)
     out = capsys.readouterr().out
     assert (
-        f"run_001: provider responses {one_repeat}, cache replays 0 "
-        "(resumed from run_001.csv: counts include its rows)\n"
+        f"run_001: provider responses {one_repeat}, cache replays 0; of these, "
+        f"kept from run_001.csv: provider responses {one_repeat}, cache replays 0\n"
     ) in out
+    record = json.loads((tmp_path / "runs" / REPEATED_RUN_MARKER).read_text())
+    assert record == {"repeats_with_own_cache_namespace": ["run_000", "run_001"]}
 
 
-def test_repeat_files_written_before_the_namespaces_are_refused(monkeypatch, tmp_path):
-    """Repeats written under one shared namespace may be replays of repeat 1,
-    so the command does not resume from them."""
+@pytest.mark.parametrize("left_by", ["fatal error", "infrastructure error"])
+def test_a_resume_that_keeps_no_row_does_not_say_it_kept_any(
+    left_by, disk_cache, wire, sent_per_repeat, tmp_path, capsys
+):
+    """The repeat's file exists, but the runner keeps none of its rows, so the
+    line names no kept rows."""
+    runs = tmp_path / "runs"
+    if left_by == "fatal error":
+        # A rejected key stops the model with no row; the command then writes
+        # a CSV holding a header only. Nothing was cached.
+        wire.answer = lambda *_args: (
+            401,
+            {
+                "type": "error",
+                "error": {"type": "authentication_error", "message": "bad key"},
+            },
+        )
+        _run(ANTHROPIC_TOOL, runs, repeats=1)
+        assert (runs / "run_000.csv").read_text().strip() == "run_id"
+        expected = ({"run_000": 1}, "provider responses 1, cache replays 0")
+    else:
+        # Rows whose error the loader counts as infrastructure, as an
+        # interrupted or older run can leave. The answer is in the cache.
+        _run(ANTHROPIC_TOOL, runs, repeats=1)
+        rows = pd.read_csv(runs / "run_000.csv")
+        rows["error"] = "litellm.Timeout: request timed out"
+        rows.to_csv(runs / "run_000.csv", index=False)
+        expected = ({"run_000": 0}, "provider responses 0, cache replays 1")
+    assert sent_per_repeat["run_000"] > 0
+    sent_per_repeat.clear()
+    capsys.readouterr()
+    wire.answer = staticmethod(_canned_answer)
+
+    again = _run(ANTHROPIC_TOOL, runs, repeats=1)
+
+    _assert_answered(again)
+    sent, counts = expected
+    assert sent_per_repeat == sent
+    out = capsys.readouterr().out
+    assert f"run_000: {counts}\n" in out
+    assert "kept from" not in out
+
+
+def test_a_repeat_file_the_marker_does_not_record_is_refused(
+    disk_cache, wire, sent_per_repeat, tmp_path
+):
+    """The marker does not vouch for a directory, only for the repeats it
+    lists: here a run without per-repeat namespaces, as an earlier version of
+    the command ran, adds a repeat file beside a recorded one."""
+    runs = tmp_path / "runs"
+    _run(OPUS, runs, repeats=1)
+    eval_no_tools.run_no_tools_eval(
+        [SCENARIO],
+        models={_name_of(OPUS): OPUS},
+        programs=VARIABLES,
+        output_path=str(runs / "run_001.csv"),
+        run_id="run_001",
+    )
+    sent = len(wire)
+    record = (runs / REPEATED_RUN_MARKER).read_text()
+
+    with pytest.raises(ValueError, match=r"run_001\.csv.*Use a new output directory"):
+        _run(OPUS, runs, repeats=3)
+
+    assert len(wire) == sent
+    assert (runs / REPEATED_RUN_MARKER).read_text() == record
+    assert not (runs / "run_002.csv").exists()
+
+
+@pytest.mark.parametrize(
+    "marker",
+    [
+        None,
+        '{"repeats_with_own_cache_namespace": ["run_000"]}',
+        '{"each_repeat_has_its_own_cache_namespace": true}',
+        '{"repeats_with_own_cache_namespace": "run_000"}',
+        "not json",
+    ],
+)
+def test_repeat_files_without_a_record_are_refused_before_any_request(
+    marker, monkeypatch, tmp_path
+):
+    """A file the marker does not list, here one past the repeats asked for,
+    or a marker that cannot be read: the command sends nothing."""
     runs = tmp_path / "runs"
     runs.mkdir()
     (runs / "run_000.csv").write_text("model,scenario_id,variable,prediction\n")
+    (runs / "run_005.csv").write_text("model,scenario_id,variable,prediction\n")
+    if marker is not None:
+        (runs / REPEATED_RUN_MARKER).write_text(marker)
     called = []
     monkeypatch.setattr(
         eval_no_tools, "run_no_tools_eval", lambda *a, **k: called.append(k)
@@ -613,24 +898,82 @@ def test_repeat_files_written_before_the_namespaces_are_refused(monkeypatch, tmp
         _run(OPUS, runs)
 
     assert not called
-    assert not (runs / REPEATED_RUN_MARKER).exists()
+    if marker is None:
+        assert not (runs / REPEATED_RUN_MARKER).exists()
+    else:
+        assert (runs / REPEATED_RUN_MARKER).read_text() == marker
 
 
-def test_response_sources_counts_request_groups_without_a_record():
-    rows = [
-        {"call_id": "a", "live_calls": 2, "cache_hit_calls": 0},
-        {"call_id": "a", "live_calls": 2, "cache_hit_calls": 0},
-        {"call_id": "b", "live_calls": 0, "cache_hit_calls": 1},
-        {"call_id": "c", "live_calls": None, "cache_hit_calls": None},
+def test_response_sources_counts_each_request_group_once():
+    batch = [
+        # Model "a" and household "b:c", and model "a:b" and household "c",
+        # share the call id "run_000:a:b:c"; they are two request groups.
+        {
+            "model": "a",
+            "scenario_id": "b:c",
+            "variable": "snap",
+            "live_calls": 2,
+            "cache_hit_calls": 0,
+        },
+        {
+            "model": "a",
+            "scenario_id": "b:c",
+            "variable": "ssi",
+            "live_calls": 2,
+            "cache_hit_calls": 0,
+        },
+        {
+            "model": "a:b",
+            "scenario_id": "c",
+            "variable": "snap",
+            "live_calls": 1,
+            "cache_hit_calls": 0,
+        },
+        {
+            "model": "a:b",
+            "scenario_id": "d",
+            "variable": "snap",
+            "live_calls": 0,
+            "cache_hit_calls": 1,
+        },
+        {
+            "model": "a:b",
+            "scenario_id": "e",
+            "variable": "snap",
+            "live_calls": 1,
+            "cache_hit_calls": None,
+        },
+        {
+            "model": "a:b",
+            "scenario_id": "f",
+            "variable": "snap",
+            "live_calls": None,
+            "cache_hit_calls": None,
+        },
     ]
-    assert _response_sources(pd.DataFrame(rows)) == (2, 1, 1)
-    assert _response_sources(pd.DataFrame([{"call_id": "a"}, {"call_id": "b"}])) == (
-        0,
-        0,
-        2,
-    )
+    frame = pd.DataFrame(batch)
+    for row in batch:
+        row["call_id"] = ":".join(["run_000", row["model"], row["scenario_id"]])
+    assert _response_sources(pd.DataFrame(batch)) == (3, 1, 2)
+    assert _response_sources(frame) == (3, 1, 2)
+    # One output a request in the single-output runner.
+    assert _response_sources(frame, single_output=True) == (5, 1, 2)
+    no_counts = pd.DataFrame([{"model": "a", "scenario_id": "b", "variable": "snap"}])
+    assert _response_sources(no_counts) == (0, 0, 1)
     assert _response_sources(pd.DataFrame()) == (0, 0, 0)
-    assert _response_sources(pd.DataFrame([{"prediction": 1.0}])) == (0, 0, 0)
+
+
+def test_repeats_cannot_overlap_in_one_process(disk_cache):
+    base = disk_cache.namespace
+    with _OwnCacheNamespace("run_000"):
+        with pytest.raises(RuntimeError, match="another repeat is running"):
+            with _OwnCacheNamespace("run_001"):
+                pass
+        assert disk_cache.namespace == _repeat_cache_namespace(base, "run_000")
+    assert disk_cache.namespace == base
+    with _OwnCacheNamespace("run_001"):
+        assert disk_cache.namespace == _repeat_cache_namespace(base, "run_001")
+    assert disk_cache.namespace == base
 
 
 def test_without_a_cache_every_repeat_asks(sent_per_repeat, tmp_path):
@@ -643,27 +986,30 @@ def test_without_a_cache_every_repeat_asks(sent_per_repeat, tmp_path):
 
 
 def test_an_effort_override_keeps_the_repeat_namespace(
-    disk_cache, sent_per_repeat, tmp_path, monkeypatch
+    disk_cache, sent_per_repeat, keys_per_repeat, tmp_path, monkeypatch
 ):
     """The override's own request namespace outranks the cache's, so it has
-    to carry the repeat."""
+    to carry the repeat: for the lookup, the store, and a rerun's replay."""
     monkeypatch.setenv(REASONING_EFFORT_OVERRIDE_ENV, f"{OPUS}=high")
-    stored: list[str] = []
-    put = disk_cache.cache.set_cache
-
-    def set_cache(key, value, **kwargs):
-        stored.append(key)
-        return put(key, value, **kwargs)
-
-    monkeypatch.setattr(disk_cache.cache, "set_cache", set_cache)
     base = disk_cache.namespace
 
-    _run(OPUS, tmp_path / "runs")
+    first = _run(OPUS, tmp_path / "runs")
 
-    assert sent_per_repeat["run_001"] == sent_per_repeat["run_000"] > 0
-    for run_id in ("run_000", "run_001"):
+    one_repeat = sent_per_repeat["run_000"]
+    assert sent_per_repeat["run_001"] == one_repeat > 0
+    assert set(keys_per_repeat) == {"run_000", "run_001"}
+    for run_id, used in keys_per_repeat.items():
+        assert {kind for kind, _ in used} == {"lookup", "store"}
         prefix = f"{_repeat_cache_namespace(base, run_id)}:{OPUS}:effort=high:"
-        assert any(key.startswith(prefix) for key in stored), run_id
+        assert all(key.startswith(prefix) for _, key in used), run_id
+    sent_per_repeat.clear()
+
+    enable_cache(str(tmp_path / "cache"))
+    again = _run(OPUS, tmp_path / "again")
+
+    assert sent_per_repeat == {"run_000": 0, "run_001": 0}
+    for run_id in ("run_000", "run_001"):
+        assert _raw(again, run_id) == _raw(first, run_id)
 
 
 def test_the_cache_namespace_comes_back_when_a_repeat_fails(
@@ -709,7 +1055,9 @@ def test_repeats_get_distinct_namespaces_and_the_base_comes_back(
             [
                 {
                     "run_id": run_id,
-                    "call_id": run_id,
+                    "model": "a",
+                    "scenario_id": SCENARIO.id,
+                    "variable": "snap",
                     "live_calls": 1,
                     "cache_hit_calls": 0,
                 }
