@@ -45,6 +45,7 @@ import csv
 import gzip
 import hashlib
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -940,6 +941,38 @@ def household_impact_summary_by_model(
     )
 
 
+def require_published_costs(country_payload: dict) -> dict[str, float]:
+    """Each no-tools board model's published ``costUsd``; refuse a board
+    that lacks one.
+
+    ``analysis.model_cost_latency`` leaves ``costUsd`` out when no row of a
+    model records a cost and the rows' usage cannot establish one from the
+    model's price override. The report's published total sums every board
+    model's cost, and the paper's caption explains a missing cost only as a
+    zero charge, so the freeze stops and names the models rather than
+    publish a board with a cost missing.
+    """
+    rows = [
+        row for row in country_payload["modelStats"] if row["condition"] == "no_tools"
+    ]
+    missing = sorted(
+        str(row["model"])
+        for row in rows
+        if isinstance(row.get("costUsd"), bool)
+        or not isinstance(row.get("costUsd"), (int, float))
+        or not math.isfinite(row["costUsd"])
+    )
+    if missing:
+        raise SystemExit(
+            f"The published payload has no costUsd for {', '.join(missing)}: no "
+            "row of those models records a cost, and analysis.model_cost_latency "
+            "could not establish one from the price override. Record the rows' "
+            "costs or carry a released cost (as the release drivers' "
+            "CARRIED_USAGE does), then export again."
+        )
+    return {row["model"]: row["costUsd"] for row in rows}
+
+
 def regenerate_analysis(dest_dir: Path) -> None:
     """Run the analyze CLI into ``dest_dir`` and add the impact summary.
 
@@ -994,12 +1027,7 @@ def regenerate_analysis(dest_dir: Path) -> None:
     report_tables["bounded_summary"] = report_tables["model_summary"][
         ["model", "bounded_score", "amount_accuracy", "participation_accuracy"]
     ].sort_values("model")
-    country_payload = read_run_payload(RUN_DEST)
-    published_model_costs = {
-        row["model"]: row["costUsd"]
-        for row in country_payload["modelStats"]
-        if row["condition"] == "no_tools"
-    }
+    published_model_costs = require_published_costs(read_run_payload(RUN_DEST))
     (dest_dir / "report.md").write_text(
         render_markdown_report(
             report_tables, published_model_costs=published_model_costs
@@ -2060,6 +2088,11 @@ def main() -> None:
     # Dated from the rows freeze_run gzips into the snapshot, before any write.
     response_window = model_response_window(
         SOURCE_US / "predictions.csv", MODEL_RESPONSE_START, MODEL_RESPONSE_DATE
+    )
+    # regenerate_analysis needs every board model's cost; check it before
+    # the steps below delete and rewrite the snapshot.
+    require_published_costs(
+        json.loads(PUBLISHED_DASHBOARD_SOURCE.read_bytes())["countries"]["us"]
     )
 
     remove_stale_artifacts()
