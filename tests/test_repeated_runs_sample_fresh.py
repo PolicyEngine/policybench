@@ -1,7 +1,8 @@
 """Each repeat of a repeated run asks the models again.
 
 ``policybench eval-no-tools-repeated`` turns the LiteLLM disk cache on, and
-every repeat builds the same requests. LiteLLM keys the cache on the request,
+every repeat builds the same first-round requests from the same inputs.
+LiteLLM keys the cache on the request,
 so repeats 2..N used to get repeat 1's responses back from the cache for
 every request whose stored answer a rebuilt request finds, and the run
 reported no run-to-run variation. Each repeat now runs under its own cache
@@ -18,11 +19,11 @@ which LiteLLM loads when it is first imported, before any fixture; set
 Fixtures count requests per repeat and, where a test asks for them, record
 the cache keys each repeat looks up and stores.
 
-Nine test functions send no request: the namespace's spelling, the check
-of directories the command cannot vouch for (each case), the check's
-accepted rows, the response counter, the overlap guard, the two that check
-a repeat raises when the cache changes under it, and the two that check the
-namespace comes back (these four replace the runner; the property test
+Ten test functions send no request: the namespace's spelling, the check of
+directories the command cannot vouch for (each case), the check's accepted
+rows, the response counter, the overlap guard, the three that check a
+repeat raises when the cache changes under it, and the two that check the
+namespace comes back (these five replace the runner; the property test
 replaces the cache object too).
 """
 
@@ -1054,7 +1055,8 @@ def test_the_check_accepts_rows_that_share_no_response(tmp_path):
     """Error rows carry no response id; the same id under two models is two
     responses; rows of one request group share their id within one file; an
     empty file and a header-only file hold nothing to check; a file that is
-    not a CSV is not read."""
+    not a CSV is not read; a spend ledger that cannot be read adds nothing,
+    and one that can adds its responses under the model ids it records."""
     header = "model,scenario_id,variable,prediction,error,provider_response_id\n"
     (tmp_path / "run_000.csv").write_text(
         header
@@ -1068,8 +1070,122 @@ def test_the_check_accepts_rows_that_share_no_response(tmp_path):
     # CSV text in a file not named *.csv, sharing run_000's response: read,
     # it would be refused.
     (tmp_path / "run_000.csv.bak").write_text(header + "a,h,snap,1.0,,resp-1\n")
+    # run_000's ledger records a second response, and model "a"'s id; run_001's
+    # cannot be read.
+    ledger = [
+        {"call_key": "sync:1", "model": "a", "model_id": "id-a"},
+        {
+            "call_key": "sync:2",
+            "model": "a",
+            "model_id": "id-a",
+            "provider_response_id": "resp-2",
+        },
+    ]
+    (tmp_path / "run_000.csv.spend.jsonl").write_text(
+        "".join(json.dumps(record) + "\n" for record in ledger) + "{not json\n"
+    )
+    (tmp_path / "run_001.csv.spend.jsonl").mkdir()
+    (tmp_path / "run_004.csv").write_text(header + "id-b,h,snap,1.0,,resp-2\n")
 
     _refuse_shared_responses(tmp_path)
+
+
+def test_a_file_that_replayed_another_files_chunks_in_another_order_is_refused(
+    monkeypatch, disk_cache, wire, tmp_path
+):
+    """One output per explanation chunk, and the second file asked for the
+    outputs in the other order, under one namespace: it replayed both of the
+    first file's chunks, and its rows' first id is the first file's second.
+    The spend ledgers record every response, so the check sees the replay."""
+    monkeypatch.setattr(
+        eval_no_tools, "_required_explanation_chunk_size", lambda *_a, **_k: 1
+    )
+    wire.answer = _FollowUpAnswers("chunk")
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    for run_id, programs in (("run_000", VARIABLES), ("run_001", VARIABLES[::-1])):
+        eval_no_tools.run_no_tools_eval(
+            [SCENARIO],
+            models={_name_of(ANTHROPIC_TOOL): ANTHROPIC_TOOL},
+            programs=programs,
+            output_path=str(runs / f"{run_id}.csv"),
+            run_id=run_id,
+        )
+    first = pd.read_csv(runs / "run_000.csv")
+    second = pd.read_csv(runs / "run_001.csv")
+    _assert_answered(second)
+    assert len(wire) == 2
+    assert second["cache_hit_calls"].drop_duplicates().tolist() == [2]
+    assert set(first["provider_response_id"]).isdisjoint(second["provider_response_id"])
+
+    with pytest.raises(ValueError, match=r"run_000\.csv and run_001\.csv"):
+        _refuse_shared_responses(runs)
+
+
+def test_one_model_under_two_names_is_one_model_to_the_check(
+    disk_cache, wire, tmp_path
+):
+    """Two files name the same model differently, and the second replayed the
+    first: the spend ledgers record the model each request went to."""
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    for run_id, name in (("run_001", "first name"), ("run_002", "second name")):
+        eval_no_tools.run_no_tools_eval(
+            [SCENARIO],
+            models={name: OPUS},
+            programs=VARIABLES,
+            output_path=str(runs / f"{run_id}.csv"),
+            run_id=run_id,
+        )
+    second = pd.read_csv(runs / "run_002.csv")
+    assert second["cache_hit_calls"].sum() > 0
+
+    with pytest.raises(ValueError, match=r"run_001\.csv and run_002\.csv"):
+        _refuse_shared_responses(runs)
+
+
+# A card whose provider response id reaches the row as the provider sent it.
+PROVIDER_ID_CARD = next(
+    ids[0]
+    for group, ids in sorted(GROUPS.items())
+    if group.startswith(("deepseek", "openrouter", "xai"))
+)
+# Ids that pandas reads as missing values unless told otherwise.
+MISSING_LOOKING_IDS = ["NA", "null", "None", "N/A"]
+
+
+def test_a_response_id_that_reads_as_missing_is_still_an_id(disk_cache, wire, tmp_path):
+    """A provider id spelled like a missing value is an id: the command
+    neither refuses its own files nor loses the ids when it resumes them."""
+
+    def answer(path, body, call):
+        response = _canned_answer(path, body, call)
+        response["id"] = MISSING_LOOKING_IDS[call - 1]
+        return response
+
+    wire.answer = answer
+    runs = tmp_path / "runs"
+
+    frame = _run(PROVIDER_ID_CARD, runs)
+
+    _assert_answered(frame)
+    assert len(wire) == 2
+
+    def ids() -> dict[str, list[str]]:
+        return {
+            run_id: pd.read_csv(
+                runs / f"{run_id}.csv", dtype=str, keep_default_na=False
+            )["provider_response_id"].tolist()
+            for run_id in ("run_000", "run_001")
+        }
+
+    written = ids()
+    assert written == {"run_000": ["NA", "NA"], "run_001": ["null", "null"]}
+
+    _run(PROVIDER_ID_CARD, runs)
+
+    assert len(wire) == 2
+    assert ids() == written
 
 
 def test_response_sources_counts_each_request_group_once():
@@ -1207,6 +1323,32 @@ def test_a_failing_repeat_keeps_its_own_error_when_the_cache_changed(
         _run(OPUS, tmp_path / "runs")
 
     assert disk_cache.namespace == base
+
+
+@pytest.mark.parametrize("runner_fails", [True, False])
+def test_a_repeat_whose_cache_lost_its_namespace_restores_it(
+    runner_fails, disk_cache, monkeypatch, tmp_path
+):
+    """Something removed the cache's namespace attribute while a repeat ran:
+    the repeat puts the namespace back, a failing runner keeps its own error,
+    and a runner that returned gets the cache-changed error."""
+    base = disk_cache.namespace
+
+    def runner(*_args, run_id, **_kwargs):
+        del litellm.cache.namespace
+        if runner_fails:
+            raise RuntimeError("provider down")
+        return _one_row(run_id)
+
+    monkeypatch.setattr(eval_no_tools, "run_no_tools_eval", runner)
+
+    match = "provider down" if runner_fails else "namespace changed, while repeat"
+    with pytest.raises(RuntimeError, match=match):
+        _run(OPUS, tmp_path / "runs")
+
+    assert disk_cache.namespace == base
+    with _OwnCacheNamespace("run_001"):
+        pass
 
 
 def test_without_a_cache_every_repeat_asks(sent_per_repeat, tmp_path):

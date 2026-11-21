@@ -3476,11 +3476,23 @@ def _output_metadata_path(output_path: str | None) -> Path | None:
     return Path(f"{output_path}.meta.json")
 
 
+def _response_id_or_none(value: str) -> str | None:
+    """A response id read from a CSV cell, kept as written.
+
+    An id such as ``NA`` or ``null`` is an id; only an empty cell is none.
+    """
+    return value or None
+
+
+# Read a CSV's response ids as written rather than as pandas' missing values.
+_RESPONSE_ID_CONVERTERS = {"provider_response_id": _response_id_or_none}
+
+
 def _read_existing_output(path: Path) -> pd.DataFrame | None:
     if not path.exists() or path.stat().st_size == 0:
         return None
     try:
-        return pd.read_csv(path)
+        return pd.read_csv(path, converters=_RESPONSE_ID_CONVERTERS)
     except pd.errors.EmptyDataError:
         return None
 
@@ -4309,21 +4321,24 @@ def _repeat_cache_namespace(base: str | None, run_id: str) -> str:
 # Held while a repeat runs. The cache's namespace is process-wide, so two
 # repeats running at once in one process would share it.
 _REPEAT_NAMESPACE_LOCK = threading.Lock()
+# What a repeat finds when something removed the cache's namespace attribute.
+_NO_NAMESPACE = object()
 
 
 class _OwnCacheNamespace:
     """Give one repeat its own LiteLLM disk-cache namespace while it runs.
 
-    Every repeat builds the same requests, and LiteLLM keys its disk cache on
-    the request, so without this the cache the CLI turns on can answer
-    repeats 2..N with repeat 1's responses. LiteLLM prefixes each key it
-    computes, for the lookup and for the store, with the cache's
-    ``namespace`` attribute, read on each call (``Cache._add_namespace_to_cache_key``
-    in LiteLLM 1.95.0), unless the request names its own namespace (in
-    ``cache`` or ``metadata["redis_namespace"]``) or brings its own
-    ``cache_key``. The one namespace the harness puts on a request, for an
-    effort override (``_effort_cache_namespace``), is built from the attribute
-    while the repeat runs, so it keeps the repeat.
+    Every repeat builds the same first-round requests from the same inputs,
+    and LiteLLM keys its disk cache on the request, so without this the cache
+    the CLI turns on can answer repeats 2..N with repeat 1's responses.
+    LiteLLM prefixes each key it computes, for the lookup and for the store,
+    with the cache's ``namespace`` attribute, read on each call
+    (``Cache._add_namespace_to_cache_key`` in LiteLLM 1.95.0), unless the
+    request names its own namespace (in ``cache`` or
+    ``metadata["redis_namespace"]``) or brings its own ``cache_key``. The one
+    namespace the harness puts on a request, for an effort override
+    (``_effort_cache_namespace``), is built from the attribute while the
+    repeat runs, so it keeps the repeat.
 
     So a repeat looks up and stores its answers under its own namespace,
     which no other repeat of its set uses, and a rerun of the same repeat on
@@ -4342,17 +4357,22 @@ class _OwnCacheNamespace:
     the same follow-up only where those answers lead to it again.
 
     The namespace is an attribute of the cache, which is process-wide, so a
-    repeat must be the only evaluation in its process (the CLI runs one):
-    any other request sent while a repeat runs uses the repeat's namespace.
-    Entering a repeat while another runs raises RuntimeError, and so does a
-    repeat that ends to find ``litellm.cache`` replaced or its namespace
-    changed, since its requests may then have used another namespace (unless
-    the repeat is already raising). Without a cache the namespace is left
-    alone.
+    repeat must be the only evaluation in its process (the CLI runs one),
+    and nothing may call ``enable_cache()`` or assign ``litellm.cache`` while
+    it runs: any other request sent while a repeat runs uses the repeat's
+    namespace, and a replaced cache gives the repeat's later requests
+    another namespace. Entering a repeat while another runs raises
+    RuntimeError. A repeat that ends to find ``litellm.cache`` replaced, or
+    its namespace changed or removed, puts the namespace back and raises
+    RuntimeError naming ``output_name``, whose rows may hold answers looked
+    up under another namespace and which a rerun into the same directory
+    would keep (unless the repeat is already raising). The check runs only
+    when the repeat ends. Without a cache the namespace is left alone.
     """
 
-    def __init__(self, run_id: str) -> None:
+    def __init__(self, run_id: str, output_name: str | None = None) -> None:
         self._run_id = run_id
+        self._output_name = output_name
         self._cache = None
         self._base: str | None = None
         self._namespace: str | None = None
@@ -4371,19 +4391,27 @@ class _OwnCacheNamespace:
 
     def __exit__(self, exc_type, *_exc) -> None:
         try:
-            changed = litellm.cache is not self._cache or (
-                self._cache is not None and self._cache.namespace != self._namespace
-            )
+            changed = litellm.cache is not self._cache
             if self._cache is not None:
+                found = getattr(self._cache, "namespace", _NO_NAMESPACE)
                 self._cache.namespace = self._base
+                changed = changed or found != self._namespace
         finally:
             _REPEAT_NAMESPACE_LOCK.release()
         if changed and exc_type is None:
+            delete = (
+                f" Delete {self._output_name} before running the command into "
+                "this directory again: a rerun would keep its rows, which may "
+                "hold answers looked up under another namespace."
+                if self._output_name
+                else ""
+            )
             raise RuntimeError(
-                f"The disk cache was replaced, or its namespace changed, while "
+                "The disk cache was replaced, or its namespace changed, while "
                 f"repeat {self._run_id} ran, so its requests may not have used "
-                "its own namespace. Run nothing else in this process while a "
-                "repeat runs."
+                f"its own namespace.{delete} Run nothing else in this process "
+                "while a repeat runs, and do not call enable_cache() or assign "
+                "litellm.cache."
             )
 
 
@@ -4424,33 +4452,76 @@ def _response_sources(
 _RUNS_DIR_FILES = "*.csv"
 
 
+def _ledger_responses(csv_path: Path) -> tuple[set[tuple[str, str]], dict[str, str]]:
+    """The responses a CSV file's spend ledger records, and its model ids.
+
+    Returns the (model id, response id) pairs of every request the ledger
+    records a response for, replays included, and the model id it records
+    for each model name the file's rows use. A ledger that is absent, cannot
+    be read, or lost a record records less; it never adds a pair the file's
+    requests did not get.
+    """
+    try:
+        records = read_spend_ledger(spend_ledger_path(csv_path))
+    except (OSError, UnicodeDecodeError):
+        return set(), {}
+    responses: set[tuple[str, str]] = set()
+    model_ids: dict[str, str] = {}
+    for record in records:
+        name = record.get("model")
+        model_id = record.get("model_id") or name
+        if not isinstance(model_id, str) or not model_id:
+            continue
+        if isinstance(name, str) and name:
+            model_ids.setdefault(name, model_id)
+        response_id = record.get("provider_response_id")
+        if isinstance(response_id, str) and response_id:
+            responses.add((model_id, response_id))
+    return responses, model_ids
+
+
 def _refuse_shared_responses(output_path: Path) -> None:
     """Refuse a directory where two CSV files hold the same provider response.
 
-    Each answered row records ``provider_response_id``: the first id among
-    the responses its request group got (a household, or one of its outputs
-    with ``single_output``), as LiteLLM recorded it (the provider's id, or
-    one LiteLLM generated when the provider gave none). A cache replay
-    returns the stored response with its id. A group's first-round requests
-    are built from the same inputs in every repeat, so a repeat that could
-    reach another repeat's cache entries would replay them, and its rows
-    would carry the other repeat's id. Two files holding the same model and
-    response id therefore hold one answer twice, whatever wrote them. The
-    check sees only that first id: a household whose first explanation chunk
-    got no response in one file can share later chunks with another file
+    A response is a model and a response id (the provider's id, or one
+    LiteLLM generated when the provider gave none), and a cache replay
+    returns the stored response with its id. So two files that hold the same
+    model and response id hold one answer twice, whatever wrote them. Each
+    file's responses are:
+
+    - the ``provider_response_id`` of its answered rows: the first id among
+      the responses a row's request group got (a household, or one of its
+      outputs with ``single_output``);
+    - every response its spend ledger (``<file>.spend.jsonl``) records, for
+      each request of the file, replays included, written by this code and
+      by the code since ea67093d.
+
+    A row's response counts under its model name and under its model id:
+    the one the ledger records for the name, else the one ``MODELS`` gives
+    it, else the name. A ledger's response counts under the model id it
+    records. So the check finds every pair the CSV rows alone would show,
+    and more. Without a readable ledger it sees only each request group's
+    first id, so a replayed later response (a later explanation chunk, or a
+    follow-up), or one model under two names ``MODELS`` does not know, goes
     unseen.
 
     A row that holds an answer (or may: the file has no prediction column)
     but no id cannot be checked, so a file holding one is refused; code from
     before the column was added (c7bf2db0), or a write cut short, leaves such
-    rows. So is a file that cannot be read.
+    rows. So is a CSV file that cannot be read. The check reads the
+    directory as it is when it runs.
     """
     columns = {"model", "prediction", "provider_response_id"}
     holders: dict[tuple[str, str], str] = {}
-    shared: dict[tuple[str, str], int] = {}
+    shared: dict[tuple[str, str], set[str]] = {}
     for path in sorted(output_path.glob(_RUNS_DIR_FILES)):
         try:
-            frame = pd.read_csv(path, dtype=str, usecols=lambda name: name in columns)
+            frame = pd.read_csv(
+                path,
+                dtype={"model": str, "prediction": str},
+                usecols=lambda name: name in columns,
+                converters=_RESPONSE_ID_CONVERTERS,
+            )
         except pd.errors.EmptyDataError:
             continue
         except (OSError, UnicodeDecodeError, pd.errors.ParserError) as error:
@@ -4479,22 +4550,28 @@ def _refuse_shared_responses(output_path: Path) -> None:
                 "response id, so this command cannot check that they are not "
                 "another repeat's answers. Use a new output directory."
             )
-        models = frame.get("model", pd.Series("", index=frame.index)).fillna("")
-        for key in set(zip(models[ids.notna()], ids[ids.notna()])):
+        responses, model_ids = _ledger_responses(path)
+        names = frame.get("model", pd.Series("", index=frame.index)).fillna("")
+        for name, response_id in zip(names[ids.notna()], ids[ids.notna()]):
+            # Under the name too, so files that agree on a name match whatever
+            # their ledgers record.
+            responses.add((name, response_id))
+            model = model_ids.get(name) or MODELS.get(name) or name
+            responses.add((model, response_id))
+        for key in responses:
             holder = holders.setdefault(key, path.name)
             if holder != path.name:
-                pair = (holder, path.name)
-                shared[pair] = shared.get(pair, 0) + 1
+                shared.setdefault((holder, path.name), set()).add(key[1])
     if shared:
         pairs = "; ".join(
-            f"{first} and {second}: {count}"
-            for (first, second), count in sorted(shared.items())
+            f"{first} and {second}: {len(response_ids)}"
+            for (first, second), response_ids in sorted(shared.items())
         )
         raise ValueError(
             f"CSV files in {output_path} hold the same provider responses "
-            f"(same model and provider_response_id; {pairs}), so each pair "
-            "holds one answer twice and cannot be two independent repeats. Use "
-            "a new output directory."
+            f"(same model and response id; {pairs}), so each pair holds one "
+            "answer twice and cannot be two independent repeats. Use a new "
+            "output directory."
         )
 
 
@@ -4533,12 +4610,14 @@ def run_repeated_no_tools_eval(
     """Run repeated AI-alone evaluations, saving one artifact per run.
 
     Each repeat runs under its own disk-cache namespace
-    (``_OwnCacheNamespace``), so, with nothing else running in the process,
-    it never looks up another repeat's answers, and a rerun on the same cache
-    looks up only under its own namespace. Before the first
-    request and after each repeat, a directory where two CSV files hold the
+    (``_OwnCacheNamespace``), so, with nothing else running in the process
+    and nothing replacing the cache, it never looks up another repeat's
+    answers, and a rerun on the same cache looks up only under its own
+    namespace. Before the first request and after each repeat, it checks the
+    CSV files then in the directory and raises ValueError where two hold the
     same provider response, or a file holds an answer without an id or cannot
-    be read, raises ValueError (``_refuse_shared_responses``).
+    be read (``_refuse_shared_responses``). A file written while a check
+    reads the directory, or after the last one, is not checked.
     After each repeat, one line says where its rows' responses came from, and
     how many of them it kept from an existing file.
     """
@@ -4555,7 +4634,7 @@ def run_repeated_no_tools_eval(
             run_output_path, scenarios, programs, include_explanations, single_output
         )
         runner = run_no_tools_single_output_eval if single_output else run_no_tools_eval
-        with _OwnCacheNamespace(run_id):
+        with _OwnCacheNamespace(run_id, run_output_path.name):
             frame = runner(
                 scenarios,
                 models=models,
