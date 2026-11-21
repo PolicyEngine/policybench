@@ -322,6 +322,15 @@ def _every_row(rows: pd.DataFrame, column: str) -> pd.Series | None:
     return rows[column]
 
 
+def _recorded(rows: pd.DataFrame, column: str) -> pd.Series | None:
+    """The values the rows record in a column, or None when none does (or
+    the column is absent)."""
+    if column not in rows.columns:
+        return None
+    values = rows[column].dropna()
+    return None if values.empty else values
+
+
 def _float_or_none(value: float | None) -> float | None:
     return None if value is None else float(value)
 
@@ -345,16 +354,18 @@ def run_stats(predictions: pd.DataFrame, model: str) -> dict:
     # here, as the dashboard shows them as not recorded.
     cost = model_cost_latency(rows, PRICE_OVERRIDES_PER_1M).get(model, {})
     # live_calls and cache_hit_calls count the answered and replayed provider
-    # calls behind a household's rows (repeated on each row). A figure some
-    # row does not record (rows written before its column existed, or calls
-    # nobody timed) is null here, not zero and not a bound from the rows that
-    # do record it.
+    # calls behind a household's rows (repeated on each row, zero for a
+    # household whose request failed). Rows written before a count's column
+    # existed leave it empty, and then the count is null, not zero.
     live = _every_row(rows, "live_calls")
     live_calls = None if live is None else live.groupby(rows["scenario_id"]).first()
     hits = _every_row(rows, "cache_hit_calls")
-    completion = _every_row(rows, "completion_tokens")
-    started = _every_row(rows, "request_started_at")
-    completed = _every_row(rows, "request_completed_at")
+    # A failed household's rows record no usage and no request times, so the
+    # output tokens and the request window come from the rows that record
+    # them, and are null only when none does.
+    completion = _recorded(rows, "completion_tokens")
+    started = _recorded(rows, "request_started_at")
+    completed = _recorded(rows, "request_completed_at")
     parsed = rows["prediction"].notna()
     return {
         "households": int(rows["scenario_id"].nunique()),

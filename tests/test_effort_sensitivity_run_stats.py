@@ -4,10 +4,12 @@ rows cannot establish.
 model_cost_latency leaves out a cost it cannot establish, and the model when
 it has neither a cost nor a latency; run_stats then reports null for those
 fields, as the dashboard reports a cost as not recorded, rather than failing.
-It reports null the same way for output tokens, call counts and the request
-time window when some row does not record them (rows written before the
-column existed, or calls nobody timed), where it used to raise or report
-zero; with no first request, the lockfile pin is null too.
+It reports null the same way for a call count some row does not record (rows
+written before the column existed), and for output tokens and the request
+time window when no row records them, where it used to raise or report zero;
+with no first request, the lockfile pin is null too. A household whose
+request failed records no usage and no request times, and does not null the
+run's figures.
 The dashboard leaves such a key out of a frozen modelStats row (the committed
 snapshot's gpt-5.5 row has no latencySeconds), so --check-board reads the
 frozen figures without assuming the keys: a figure only one side records fails
@@ -274,15 +276,34 @@ def test_unrecorded_output_tokens_are_null_not_zero(run_stats):
     assert run_stats(absent, "claude-fable-5.2")["output_tokens"] is None
 
 
-def test_partly_timed_rows_report_no_time_window(run_stats):
-    """One household untimed: the earliest recorded start bounds the first
-    request but need not be it, so the window is null, as a call count some
-    row lacks is."""
+def test_a_failed_household_keeps_the_runs_tokens_and_time_window(run_stats):
+    """The runner writes a failed household's rows with no prediction, usage
+    or request times and with call counts of zero. The run's output tokens,
+    request window and counts still come from the households that answered."""
     rows = _rows("claude-fable-5.2", cost=0.01, elapsed=4.0)
-    rows.loc[rows["scenario_id"] == "s2", list(UNTIMED)] = np.nan
+    failed = rows["scenario_id"] == "s2"
+    unrecorded = [
+        "prediction",
+        "total_cost_usd",
+        "elapsed_seconds",
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "cached_prompt_tokens",
+        "cache_write_prompt_tokens",
+        *UNTIMED,
+    ]
+    rows.loc[failed, unrecorded] = np.nan
+    rows.loc[failed, "live_calls"] = 0
     stats = run_stats(rows, "claude-fable-5.2")
-    assert stats["first_request_utc"] is None
-    assert stats["last_response_utc"] is None
+    assert stats["households"] == 2
+    assert stats["parse_failures"] == 1
+    assert stats["output_tokens"] == 200
+    assert stats["answered_calls"] == 1
+    assert stats["cache_hit_calls"] == 0
+    assert stats["first_request_utc"] == "2025-11-20T00:53:20Z"
+    assert stats["last_response_utc"] == "2025-11-20T00:53:30Z"
+    assert stats["cost_usd"] == pytest.approx(0.01)
 
 
 def test_lockfile_pin_is_null_without_a_first_request(script):
