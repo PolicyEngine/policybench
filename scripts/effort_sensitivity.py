@@ -308,39 +308,87 @@ def paired_difference(
     }
 
 
-def _utc(seconds: float) -> str:
+def _utc(seconds: float | None) -> str | None:
+    if seconds is None or pd.isna(seconds):
+        return None
     return pd.Timestamp(float(seconds), unit="s").strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _every_row(rows: pd.DataFrame, column: str) -> pd.Series | None:
+    """The column when every row records it, else None: rows written before
+    the column existed lack it, and an empty value is not recorded, not zero."""
+    if rows.empty or column not in rows.columns or rows[column].isna().any():
+        return None
+    return rows[column]
+
+
+def _recorded(rows: pd.DataFrame, column: str) -> pd.Series | None:
+    """The values the rows record in a column, or None when none does (or
+    the column is absent)."""
+    if column not in rows.columns:
+        return None
+    values = rows[column].dropna()
+    return None if values.empty else values
+
+
+def _float_or_none(value: float | None) -> float | None:
+    return None if value is None else float(value)
+
+
+def _close(mine: float | None, frozen: float | None) -> bool:
+    """Whether a recomputed figure is within 1e-9 of the frozen one. A figure
+    neither side records matches; a figure only one side records does not."""
+    if mine is None and frozen is None:
+        return True
+    if mine is None or frozen is None:
+        return False
+    return math.isclose(mine, frozen, rel_tol=0, abs_tol=1e-9)
 
 
 def run_stats(predictions: pd.DataFrame, model: str) -> dict:
     """Cost, output tokens, median latency, calls and parse failures of one row."""
     rows = predictions[predictions["model"] == model]
-    cost = model_cost_latency(rows, PRICE_OVERRIDES_PER_1M)[model]
-    by_household = rows.groupby("scenario_id")
-    # live_calls counts the answered provider calls behind a household's rows
-    # (repeated on each row); rows written before the column existed leave it
-    # empty, and then the count is not recorded rather than zero.
-    recorded = bool(rows["live_calls"].notna().all())
-    live_calls = by_household["live_calls"].first()
+    # model_cost_latency leaves out a cost it cannot establish (and a latency
+    # no row timed), and the model itself when it has no cost, no latency and
+    # no total tokens; those are null here.
+    cost = model_cost_latency(rows, PRICE_OVERRIDES_PER_1M).get(model, {})
+    # live_calls and cache_hit_calls count the answered and replayed
+    # responses behind a row. A household run repeats a household's counts
+    # on each of its rows, so this reads each household's first row. A count
+    # some row leaves empty (rows written before its column existed) is
+    # null, not zero.
+    live = _every_row(rows, "live_calls")
+    live_calls = None if live is None else live.groupby(rows["scenario_id"]).first()
+    hits = _every_row(rows, "cache_hit_calls")
+    # A household none of whose requests was answered records no usage and
+    # no request times, so the output tokens and the request window come
+    # from the rows that record them, and are null only when none does.
+    completion = _recorded(rows, "completion_tokens")
+    started = _recorded(rows, "request_started_at")
+    completed = _recorded(rows, "request_completed_at")
     parsed = rows["prediction"].notna()
     return {
         "households": int(rows["scenario_id"].nunique()),
         "outputs": int(len(rows)),
         "outputs_parsed": int(parsed.sum()),
         "parse_failures": int((~parsed).sum()),
-        "cost_usd": float(cost["costUsd"]),
-        "cost_per_household_usd": float(cost["costPerHousehold"]),
-        "median_household_seconds": float(cost["latencySeconds"]),
-        "output_tokens": int(round(float(rows["completion_tokens"].sum()))),
-        "answered_calls": int(live_calls.sum()) if recorded else None,
+        "cost_usd": _float_or_none(cost.get("costUsd")),
+        "cost_per_household_usd": _float_or_none(cost.get("costPerHousehold")),
+        "median_household_seconds": _float_or_none(cost.get("latencySeconds")),
+        "output_tokens": (
+            None if completion is None else int(round(float(completion.sum())))
+        ),
+        "answered_calls": None if live_calls is None else int(live_calls.sum()),
         "households_with_a_second_answered_call": (
-            int((live_calls > 1).sum()) if recorded else None
+            None if live_calls is None else int((live_calls > 1).sum())
         ),
         "cache_hit_calls": (
-            int(by_household["cache_hit_calls"].first().sum()) if recorded else None
+            None
+            if hits is None
+            else int(hits.groupby(rows["scenario_id"]).first().sum())
         ),
-        "first_request_utc": _utc(rows["request_started_at"].min()),
-        "last_response_utc": _utc(rows["request_completed_at"].max()),
+        "first_request_utc": None if started is None else _utc(started.min()),
+        "last_response_utc": None if completed is None else _utc(completed.max()),
     }
 
 
@@ -353,15 +401,23 @@ def check_board(inputs: ScoringInputs, board: pd.DataFrame) -> dict:
     for model in BOARD_MODELS:
         row = stats[model]
         mine = run_stats(board, model)
+        # A frozen row can lack a figure: the dashboard drops a cost, latency,
+        # exact or within-1% rate it cannot establish (the key is absent, not
+        # null). Read each with get: a figure the frozen row lacks fails the
+        # comparison when the recomputation has it, and a cost or latency
+        # that neither side has passes.
         report[model] = {
-            "exact": (scores[model]["exact"], row["exact"]),
-            "within1pct": (scores[model]["within1pct"], row["within1pct"]),
-            "score": (scores[model]["score"], row["score"]),
-            "household_mean_exact": (100 * float(wide[model].mean()), row["exact"]),
-            "cost_usd": (mine["cost_usd"], row["costUsd"]),
+            "exact": (scores[model]["exact"], row.get("exact")),
+            "within1pct": (scores[model]["within1pct"], row.get("within1pct")),
+            "score": (scores[model]["score"], row.get("score")),
+            "household_mean_exact": (
+                100 * float(wide[model].mean()),
+                row.get("exact"),
+            ),
+            "cost_usd": (mine["cost_usd"], row.get("costUsd")),
             "median_household_seconds": (
                 mine["median_household_seconds"],
-                row["latencySeconds"],
+                row.get("latencySeconds"),
             ),
             "n_parsed": (
                 int(
@@ -372,7 +428,7 @@ def check_board(inputs: ScoringInputs, board: pd.DataFrame) -> dict:
                     .notna()
                     .sum()
                 ),
-                row["nParsed"],
+                row.get("nParsed"),
             ),
         }
     return report
@@ -559,8 +615,12 @@ def probe_record(path: Path) -> dict:
     }
 
 
-def lockfile_litellm(before_utc: str) -> dict:
-    """The repository lockfile's litellm pin as last changed before a time."""
+def lockfile_litellm(before_utc: str | None) -> dict:
+    """The repository lockfile's litellm pin as last changed before a time;
+    null when the rows record no first request (git would read
+    ``--before=None`` as now and return today's pin)."""
+    if before_utc is None:
+        return {"lockfile_commit": None, "litellm": None}
     commit = subprocess.run(
         ["git", "log", "-1", "--format=%H", f"--before={before_utc}", "--", "uv.lock"],
         cwd=ROOT,
@@ -614,7 +674,7 @@ def main() -> None:
             if name in ("exact", "within1pct", "score", "n_parsed")
         )
         close_match = all(
-            math.isclose(mine, frozen, rel_tol=0, abs_tol=1e-9)
+            _close(mine, frozen)
             for checks in report.values()
             for mine, frozen in checks.values()
         )

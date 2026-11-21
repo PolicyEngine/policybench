@@ -189,8 +189,22 @@ def freeze_inputs(tmp_path, monkeypatch):
         source / "us" / "predictions.csv",
         [(None, None), (LAST_ANSWER_20260930 - 60, LAST_ANSWER_20260930)],
     )
-    for name in ("dashboard.json", "reference_outputs.csv.meta.json"):
-        (tmp_path / name).write_text("{}\n")
+    # The freeze checks that every board model has a published cost before
+    # it writes, so the dashboard carries one costed model.
+    (tmp_path / "dashboard.json").write_text(
+        json.dumps(
+            {
+                "countries": {
+                    "us": {
+                        "modelStats": [
+                            {"model": "model", "condition": "no_tools", "costUsd": 1.5}
+                        ]
+                    }
+                }
+            }
+        )
+    )
+    (tmp_path / "reference_outputs.csv.meta.json").write_text("{}\n")
     monkeypatch.setattr(freezer, "SOURCE_RUN", source)
     monkeypatch.setattr(freezer, "SOURCE_US", source / "us")
     monkeypatch.setattr(
@@ -235,6 +249,30 @@ def test_the_freeze_refuses_a_release_date_window_before_any_write(
     """What freeze_gpt61sol configured for dashboard-data-20260930."""
     monkeypatch.setattr(freezer, "MODEL_RESPONSE_DATE", "2026-06-12 to 2026-09-30")
     with pytest.raises(SystemExit, match="not the release date"):
+        freezer.main()
+    assert freeze_inputs == []
+
+
+def test_the_freeze_refuses_a_board_model_without_a_cost_before_any_write(
+    freeze_inputs,
+):
+    """A board model whose dashboard row has no costUsd: the freeze names
+    it and stops before any of main's write steps runs."""
+    freezer.PUBLISHED_DASHBOARD_SOURCE.write_text(
+        json.dumps(
+            {
+                "countries": {
+                    "us": {
+                        "modelStats": [
+                            {"model": "costed", "condition": "no_tools", "costUsd": 2},
+                            {"model": "costless", "condition": "no_tools"},
+                        ]
+                    }
+                }
+            }
+        )
+    )
+    with pytest.raises(SystemExit, match=r"no costUsd for costless:"):
         freezer.main()
     assert freeze_inputs == []
 
