@@ -4317,7 +4317,7 @@ class _OwnCacheNamespace:
     (``Cache._add_namespace_to_cache_key`` in LiteLLM 1.95.0). So under its own
     namespace a repeat never finds another repeat's answers, or those of an
     ``eval-no-tools`` run, and a rerun of the same repeat on the same cache
-    looks up the answers that repeat stored.
+    looks under the namespace that repeat stored its answers in.
 
     A request's own ``cache`` namespace outranks the attribute. The one the
     harness sets, for an effort override (``_effort_cache_namespace``), is
@@ -4341,17 +4341,50 @@ class _OwnCacheNamespace:
             self._cache.namespace = self._base
 
 
-def _response_sources(frame: pd.DataFrame) -> tuple[int, int]:
-    """Responses a run's rows got from the provider and from the disk cache."""
-    if frame.empty or not {"call_id", "live_calls", "cache_hit_calls"} <= set(
-        frame.columns
-    ):
-        return 0, 0
+def _response_sources(frame: pd.DataFrame) -> tuple[int, int, int]:
+    """Where the responses behind a run's rows came from.
+
+    Returns the responses the provider answered, the responses the disk cache
+    replayed, and the request groups whose rows record neither.
+    """
+    if frame.empty or "call_id" not in frame.columns:
+        return 0, 0, 0
     # Every row of one request group carries the group's counts.
     calls = frame.drop_duplicates("call_id")
-    return tuple(
-        int(pd.to_numeric(calls[column], errors="coerce").fillna(0).sum())
-        for column in ("live_calls", "cache_hit_calls")
+    if not {"live_calls", "cache_hit_calls"} <= set(calls.columns):
+        return 0, 0, len(calls)
+    live = pd.to_numeric(calls["live_calls"], errors="coerce")
+    replayed = pd.to_numeric(calls["cache_hit_calls"], errors="coerce")
+    unrecorded = int((live.isna() | replayed.isna()).sum())
+    return int(live.fillna(0).sum()), int(replayed.fillna(0).sum()), unrecorded
+
+
+# Written beside a repeated run's CSVs. Its absence marks a directory whose
+# repeat files predate per-repeat cache namespaces.
+REPEATED_RUN_MARKER = "repeated_run.json"
+
+
+def _claim_repeat_directory(output_path: Path) -> None:
+    """Mark ``output_path`` as a repeated run whose repeats sample fresh.
+
+    Refuses a directory that already holds repeat files and no marker: every
+    repeat in it shared one cache namespace, so its repeats after the first
+    may be replays of the first, and resuming from them would report no
+    run-to-run variation.
+    """
+    marker = output_path / REPEATED_RUN_MARKER
+    if marker.exists():
+        return
+    earlier = sorted(path.name for path in output_path.glob("run_*.csv"))
+    if earlier:
+        raise ValueError(
+            f"{output_path} holds repeat files (first: {earlier[0]}) and no "
+            f"{REPEATED_RUN_MARKER}, so they were written before each repeat "
+            "had its own cache namespace and repeats after the first may be "
+            "replays of it. Use a new output directory."
+        )
+    marker.write_text(
+        json.dumps({"each_repeat_has_its_own_cache_namespace": True}) + "\n"
     )
 
 
@@ -4369,14 +4402,19 @@ def run_repeated_no_tools_eval(
     Each repeat asks the models again: it runs under its own disk-cache
     namespace (``_OwnCacheNamespace``), so it never replays another
     repeat's responses, and a rerun on the same cache finds only its own.
+    After each repeat, one line says where its rows' responses came from.
+    Raises ValueError for a directory of repeat files written before repeats
+    had their own namespaces (``_claim_repeat_directory``).
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+    _claim_repeat_directory(output_path)
 
     frames = []
     for run_index in range(repeats):
         run_id = f"run_{run_index:03d}"
         run_output_path = output_path / f"{run_id}.csv"
+        resumed = run_output_path.exists()
         print(f"=== Starting {run_id} ===")
         runner = run_no_tools_single_output_eval if single_output else run_no_tools_eval
         with _OwnCacheNamespace(run_id):
@@ -4392,11 +4430,17 @@ def run_repeated_no_tools_eval(
             frame = frame.copy()
             frame["run_id"] = run_id
             frame.to_csv(run_output_path, index=False)
-        live, replayed = _response_sources(frame)
-        print(
-            f"{run_id}: {live} responses from the provider, "
-            f"{replayed} replayed from the disk cache"
-        )
+        live, replayed, unrecorded = _response_sources(frame)
+        sources = f"{run_id}: provider responses {live}, cache replays {replayed}"
+        if unrecorded:
+            sources += f", request groups with no record {unrecorded}"
+        if resumed:
+            # The runner keeps the file's complete rows and sends nothing for
+            # them, so the counts are what those rows recorded when written.
+            sources += (
+                f" (resumed from {run_output_path.name}: counts include its rows)"
+            )
+        print(sources)
         frames.append(frame)
 
     if not frames:

@@ -6,15 +6,21 @@ so repeats 2..N used to get repeat 1's responses back from the cache and the
 run reported no run-to-run variation. Each repeat now runs under its own
 cache namespace (``_OwnCacheNamespace``).
 
-These tests run the harness's repeated path through LiteLLM's real request
-path and the harness's real disk cache (``enable_cache`` in a temporary
-directory). Only the wire is replaced: ``httpx.Client.send`` answers from this
-file with a value that names the call, and a socket connection fails the test.
+The tests that send requests run the harness's repeated path through LiteLLM's
+real request path and the harness's real disk cache (``enable_cache`` in a
+temporary directory). They replace only the wire: ``httpx.Client.send``
+answers from this file with a value that names the call, and a socket
+connection fails the test. Those tests also count requests per repeat and
+record cache keys by wrapping the runner and the disk cache. Three tests send
+nothing: the two that check the namespace comes back replace the runner (the
+property test replaces the cache object too), and one checks the directory
+guard.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import socket
 from types import SimpleNamespace
 
@@ -22,7 +28,7 @@ import httpx
 import litellm
 import pandas as pd
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 import policybench.eval_no_tools as eval_no_tools
@@ -30,8 +36,10 @@ from policybench.cache import enable_cache
 from policybench.config import MODELS
 from policybench.eval_no_tools import (
     REASONING_EFFORT_OVERRIDE_ENV,
+    REPEATED_RUN_MARKER,
     _answer_contract_for_model,
     _repeat_cache_namespace,
+    _response_sources,
     _uses_responses_api,
     run_repeated_no_tools_eval,
 )
@@ -89,6 +97,7 @@ for _model_id in sorted(card.litellm_id for card in MODEL_CARDS.values()):
 # One card per provider path and answer contract; a new one joins without an
 # edit here.
 REPRESENTATIVES = [ids[0] for _, ids in sorted(GROUPS.items())]
+assert REPRESENTATIVES, "no model card to run the repeat tests on"
 
 
 def _answer(call: int) -> dict:
@@ -253,7 +262,19 @@ def offline(monkeypatch):
     # Turning the cache on registers LiteLLM callbacks; give them back too.
     for name in ("input_callback", "success_callback", "_async_success_callback"):
         monkeypatch.setattr(litellm, name, list(getattr(litellm, name)))
+    # LiteLLM remembers which callbacks it has set up in this module global.
+    monkeypatch.setattr(
+        litellm.utils, "callback_list", list(litellm.utils.callback_list or [])
+    )
     monkeypatch.setattr(litellm, "cache", None)
+
+
+@pytest.fixture(autouse=True)
+def safe_umask():
+    """The cache guard refuses a umask that lets others write the cache."""
+    previous = os.umask(0o022)
+    yield
+    os.umask(previous)
 
 
 @pytest.fixture
@@ -310,6 +331,39 @@ def sent_per_repeat(monkeypatch, wire) -> dict[str, int]:
     return counts
 
 
+@pytest.fixture
+def keys_per_repeat(monkeypatch, disk_cache) -> dict[str | None, list[tuple[str, str]]]:
+    """The keys LiteLLM looked up and stored in the disk cache, by run id."""
+    keys: dict[str | None, list[tuple[str, str]]] = {}
+    running: list[str | None] = [None]
+    get, put = disk_cache.cache.get_cache, disk_cache.cache.set_cache
+
+    def get_cache(key, **kwargs):
+        keys.setdefault(running[-1], []).append(("lookup", key))
+        return get(key, **kwargs)
+
+    def set_cache(key, value, **kwargs):
+        keys.setdefault(running[-1], []).append(("store", key))
+        return put(key, value, **kwargs)
+
+    monkeypatch.setattr(disk_cache.cache, "get_cache", get_cache)
+    monkeypatch.setattr(disk_cache.cache, "set_cache", set_cache)
+
+    def tracking(runner):
+        def run(*args, **kwargs):
+            running.append(kwargs.get("run_id"))
+            try:
+                return runner(*args, **kwargs)
+            finally:
+                running.pop()
+
+        return run
+
+    for name in ("run_no_tools_eval", "run_no_tools_single_output_eval"):
+        monkeypatch.setattr(eval_no_tools, name, tracking(getattr(eval_no_tools, name)))
+    return keys
+
+
 def _run(model_id: str, output_dir, repeats: int = 2, **kwargs) -> pd.DataFrame:
     return run_repeated_no_tools_eval(
         [SCENARIO],
@@ -329,12 +383,21 @@ def _raw(frame: pd.DataFrame, run_id: str) -> list[str]:
     return frame[frame["run_id"] == run_id]["raw_response"].tolist()
 
 
+def _assert_answered(frame: pd.DataFrame) -> None:
+    """The stub's answers parsed, so no repair round ran."""
+    assert frame["error"].isna().all(), frame["error"].dropna().iloc[0]
+    assert frame["prediction"].notna().all()
+
+
 @pytest.mark.parametrize("model_id", REPRESENTATIVES)
 def test_repeat_2_asks_again_when_repeat_1_is_cached(
-    model_id, disk_cache, sent_per_repeat, tmp_path
+    model_id, disk_cache, sent_per_repeat, keys_per_repeat, tmp_path
 ):
+    base = disk_cache.namespace
+
     frame = _run(model_id, tmp_path / "runs")
 
+    _assert_answered(frame)
     sent = sent_per_repeat
     assert sent["run_000"] > 0
     assert sent["run_001"] == sent["run_000"], (
@@ -344,13 +407,33 @@ def test_repeat_2_asks_again_when_repeat_1_is_cached(
     assert second["cache_hit_calls"].sum() == 0
     assert second["live_calls"].sum() == sent["run_001"]
     assert _raw(frame, "run_001") != _raw(frame, "run_000")
+    # Every key a repeat looks up or stores sits under its own namespace,
+    # whether or not the cache can find the answer again later.
+    assert set(keys_per_repeat) == {"run_000", "run_001"}
+    for run_id, used in keys_per_repeat.items():
+        assert {kind for kind, _ in used} == {"lookup", "store"}
+        prefix = f"{_repeat_cache_namespace(base, run_id)}:"
+        assert all(key.startswith(prefix) for _, key in used), run_id
+
+
+def test_the_repeat_namespace_is_spelled_out():
+    """A rerun finds a repeat's answers only while this spelling holds."""
+    assert (
+        _repeat_cache_namespace("policybench:x", "run_000")
+        == "policybench:x:repeat=run_000"
+    )
+    assert _repeat_cache_namespace(None, "run_007") == "repeat=run_007"
+    assert _repeat_cache_namespace("", "run_007") == "repeat=run_007"
 
 
 def test_a_single_output_repeat_asks_again(disk_cache, sent_per_repeat, tmp_path):
-    _run(OPUS, tmp_path / "runs", single_output=True)
+    frame = _run(OPUS, tmp_path / "runs", single_output=True)
 
+    _assert_answered(frame)
     assert sent_per_repeat["run_000"] > 0
     assert sent_per_repeat["run_001"] == sent_per_repeat["run_000"]
+    assert _calls(frame, "run_001")["cache_hit_calls"].sum() == 0
+    assert _raw(frame, "run_001") != _raw(frame, "run_000")
 
 
 def _a_rebuilt_request_replays(model_id: str, output_dir, wire: list) -> bool:
@@ -387,6 +470,7 @@ def test_a_rerun_replays_each_repeats_own_responses(
     replays = _a_rebuilt_request_replays(model_id, tmp_path, wire)
     assert replays or _group(model_id) == "gemini / tool"
     first = _run(model_id, tmp_path / "first")
+    _assert_answered(first)
     one_repeat = sent_per_repeat["run_000"]
     assert sent_per_repeat["run_001"] == one_repeat > 0, (
         "a repeat replayed the plain run's answers, or another repeat's"
@@ -395,8 +479,11 @@ def test_a_rerun_replays_each_repeats_own_responses(
     sent_per_repeat.clear()
     capsys.readouterr()
 
-    # A new output directory, so no CSV resume answers for the cache; one
-    # more repeat than before.
+    # As a new process would: a new cache object on the same directory. And a
+    # new output directory, so no CSV resume answers for the cache; one more
+    # repeat than before.
+    enable_cache(str(tmp_path / "cache"))
+    assert litellm.cache is not disk_cache
     again = _run(model_id, tmp_path / "again", repeats=3)
 
     rerun = 0 if replays else one_repeat
@@ -412,17 +499,14 @@ def test_a_rerun_replays_each_repeats_own_responses(
     )
     assert _raw(again, "run_001") != _raw(again, "run_000")
     out = capsys.readouterr().out
-    assert f"run_002: {one_repeat} responses from the provider, 0 replayed" in out
+    assert f"run_002: provider responses {one_repeat}, cache replays 0\n" in out
     if replays:
         for run_id in ("run_000", "run_001"):
             assert _raw(again, run_id) == _raw(first, run_id)
             replayed = _calls(again, run_id)
             assert replayed["live_calls"].sum() == 0
             assert replayed["cache_hit_calls"].sum() == one_repeat
-        assert (
-            f"run_001: 0 responses from the provider, {one_repeat} replayed from "
-            "the disk cache"
-        ) in out
+        assert f"run_001: provider responses 0, cache replays {one_repeat}\n" in out
 
 
 @pytest.mark.parametrize("model_id", REPRESENTATIVES)
@@ -485,8 +569,68 @@ def test_the_cli_command_asks_again_on_repeat_2(monkeypatch, sent_per_repeat, tm
     assert (tmp_path / "cache" / "cache.db").exists()
     assert sent_per_repeat["run_000"] > 0
     assert sent_per_repeat["run_001"] == sent_per_repeat["run_000"]
+    first = pd.read_csv(tmp_path / "runs" / "run_000.csv")
     second = pd.read_csv(tmp_path / "runs" / "run_001.csv")
     assert second["cache_hit_calls"].sum() == 0
+    assert second["raw_response"].tolist() != first["raw_response"].tolist()
+    assert (tmp_path / "runs" / REPEATED_RUN_MARKER).exists()
+
+
+def test_a_rerun_into_the_same_directory_resumes_and_says_so(
+    disk_cache, sent_per_repeat, tmp_path, capsys
+):
+    first = _run(OPUS, tmp_path / "runs")
+    one_repeat = sent_per_repeat["run_000"]
+    out = capsys.readouterr().out
+    assert f"run_000: provider responses {one_repeat}, cache replays 0\n" in out
+    assert "resumed" not in out
+    sent_per_repeat.clear()
+
+    again = _run(OPUS, tmp_path / "runs")
+
+    assert sent_per_repeat == {"run_000": 0, "run_001": 0}
+    for run_id in ("run_000", "run_001"):
+        assert _raw(again, run_id) == _raw(first, run_id)
+    out = capsys.readouterr().out
+    assert (
+        f"run_001: provider responses {one_repeat}, cache replays 0 "
+        "(resumed from run_001.csv: counts include its rows)\n"
+    ) in out
+
+
+def test_repeat_files_written_before_the_namespaces_are_refused(monkeypatch, tmp_path):
+    """Repeats written under one shared namespace may be replays of repeat 1,
+    so the command does not resume from them."""
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    (runs / "run_000.csv").write_text("model,scenario_id,variable,prediction\n")
+    called = []
+    monkeypatch.setattr(
+        eval_no_tools, "run_no_tools_eval", lambda *a, **k: called.append(k)
+    )
+
+    with pytest.raises(ValueError, match="Use a new output directory"):
+        _run(OPUS, runs)
+
+    assert not called
+    assert not (runs / REPEATED_RUN_MARKER).exists()
+
+
+def test_response_sources_counts_request_groups_without_a_record():
+    rows = [
+        {"call_id": "a", "live_calls": 2, "cache_hit_calls": 0},
+        {"call_id": "a", "live_calls": 2, "cache_hit_calls": 0},
+        {"call_id": "b", "live_calls": 0, "cache_hit_calls": 1},
+        {"call_id": "c", "live_calls": None, "cache_hit_calls": None},
+    ]
+    assert _response_sources(pd.DataFrame(rows)) == (2, 1, 1)
+    assert _response_sources(pd.DataFrame([{"call_id": "a"}, {"call_id": "b"}])) == (
+        0,
+        0,
+        2,
+    )
+    assert _response_sources(pd.DataFrame()) == (0, 0, 0)
+    assert _response_sources(pd.DataFrame([{"prediction": 1.0}])) == (0, 0, 0)
 
 
 def test_without_a_cache_every_repeat_asks(sent_per_repeat, tmp_path):
@@ -541,12 +685,7 @@ def test_the_cache_namespace_comes_back_when_a_repeat_fails(
     assert litellm.cache.namespace == base
 
 
-@settings(
-    max_examples=60,
-    deadline=None,
-    # The autouse offline fixture holds for every example.
-    suppress_health_check=[HealthCheck.function_scoped_fixture],
-)
+@settings(max_examples=60, deadline=None)
 @given(
     base=st.one_of(st.none(), st.text(min_size=1, max_size=40)),
     repeats=st.integers(min_value=1, max_value=6),

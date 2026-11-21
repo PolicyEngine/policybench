@@ -156,14 +156,22 @@ policybench analyze --runs-dir results/local/no_tools/runs --output-dir results/
 Each repeat asks the models again. The command keeps the LiteLLM disk cache on,
 but each repeat looks up and stores its answers under its own cache namespace
 (`repeat=run_000`, `repeat=run_001`, ...), so no repeat gets another repeat's
-answers, or those of an `eval-no-tools` run. Run the command again with the
-same cache directory and it reuses what each repeat already has: into the same
-output directory it resumes from the CSVs, and into a new one each repeat
-replays the answers the cache finds under its own namespace, so a higher
-`--repeats` asks only for the new repeats. After each repeat the command prints
-how many of its responses came from the provider and how many from the cache.
-To draw a new set of repeats instead, point `POLICYBENCH_CACHE_DIR` at a new
-directory.
+answers, or those of an `eval-no-tools` run.
+
+Running the command again reuses what each repeat already has. Into the same
+output directory, a repeat resumes from its CSV: it keeps the households the
+file already answers in full and sends requests for the rest. Into a new
+output directory with the same cache directory, a repeat looks for its answers
+under its own namespace and asks the model only for those the cache does not
+find. To draw a new, independent set of repeats, use a new output directory
+and point `POLICYBENCH_CACHE_DIR` at a new directory.
+
+After each repeat the command prints how many provider responses and cache
+replays the repeat's rows record, and says when the repeat resumed from an
+existing file, whose stored rows those counts include. It writes
+`repeated_run.json` beside the run files and refuses an output directory that
+holds `run_*.csv` files without it: those repeats shared one cache namespace,
+so the repeats after the first may be replays of it.
 
 `policybench reference-outputs` writes PolicyEngine reference outputs, not
 administrative truth. It also writes `results/local/scenarios.csv`, and the eval
