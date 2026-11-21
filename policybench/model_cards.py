@@ -1041,10 +1041,11 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   ceiling removes the two lower rungs. On a length finish the harness
     #   keeps the usable values and explanations a response returned, with
     #   valid cells from earlier requests. Below the ceiling it asks again at
-    #   the next rung for the outputs still missing. At the ceiling no rung is
-    #   left, so it asks for them no more. An output still missing its value
-    #   gets failure source budget_exhausted_at_ceiling. One that has its value
-    #   but lacks a usable explanation keeps the value, and the harness adds
+    #   the next rung for the outputs still missing. When a request at the
+    #   ceiling ends at length, no rung is left, so it asks for them no more.
+    #   An output still missing its value gets failure source
+    #   budget_exhausted_at_ceiling. One that has its value but lacks a usable
+    #   explanation keeps the value, and the harness adds
     #   "budget_exhausted_at_ceiling (explanation)" to the error. The second
     #   smoke ran the same two households at the 65,536-token start, in one
     #   round. Each household answered every output, values and explanations,
@@ -1146,10 +1147,11 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "rates. So the card starts at the 65,536-token ceiling "
             "(completion_token_cap), and no request runs at a lower budget. On a "
             "length finish the harness keeps the usable values and explanations a "
-            "response returned, with valid cells from earlier requests. At the ceiling "
-            "it asks no more for the outputs still missing. One missing its value gets "
-            "failure source budget_exhausted_at_ceiling; one that has its value but "
-            "lacks a usable explanation keeps the value, and the harness adds "
+            "response returned, with valid cells from earlier requests. When a request "
+            "at the ceiling ends at length, the harness asks no more for the outputs "
+            "still missing. One missing its value gets failure source "
+            "budget_exhausted_at_ceiling; one that has its value but lacks a usable "
+            "explanation keeps the value, and the harness adds "
             "budget_exhausted_at_ceiling (explanation) to the error. On 2026-11-21 a "
             "second smoke ran the same two households at the 65,536-token start. Each "
             "answered every output, values and explanations, on its first response "
