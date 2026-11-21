@@ -3863,16 +3863,18 @@ def test_gemini_4_neon_request_forces_the_answer_tool_and_sets_no_reasoning(
 ):
     """Gemini 4 Neon's card, written before the model's onboarding, takes
     Gemini 4 Hydrogen's contract, the board's forced answer tool; Google's
-    model page lists function calling as supported, and in the two-household
-    smoke both households answered every output through it. The request
-    carries no reasoning parameter, so the model reasons at Google's default,
-    high per Google's thinking guide, as Hydrogen does. It takes the card's
-    600s timeout, set from the measured output rate for a request at the
-    65,536-token ceiling, and the card's own starting budget, that ceiling:
-    in the smoke, at the Gemini family's 16,384, one household's first two
-    requests ran out of budget and were billed and discarded. The first
-    request, an answers-only repair request and the run fingerprint all
-    start at 65,536, so a length finish has no rung left."""
+    model page lists function calling as supported, and in both
+    two-household smokes every household answered every output through it.
+    The request carries no reasoning parameter, so the model reasons at
+    Google's default, high per Google's thinking guide, as Hydrogen does. It
+    takes the card's 600s timeout, set from the measured output rate for a
+    request at the 65,536-token ceiling, and the card's own starting budget,
+    that ceiling: in the first smoke, at the Gemini family's 16,384, one
+    household's first two requests ran out of budget with no usable output.
+    The first request, an answers-only repair request and
+    _initial_completion_budget_tokens, which the supervisor's and the resume
+    sidecar's fingerprints both call, all give 65,536, so a length finish
+    has no rung left."""
     from policybench.completion_budget import next_completion_budget
     from policybench.eval_no_tools import (
         ANSWER_FUNCTION_NAME,
@@ -3971,8 +3973,9 @@ def test_gemini_ids_without_a_card_budget_keep_the_family_starting_budget(
 ):
     """A gemini/ card's completion_token_cap leaves every other gemini/ id
     where it was: 16,384 tokens for 1, 3, 16 and 20 outputs, with and without
-    explanations (the board's requests and answers-only ones), and in the run
-    fingerprint."""
+    explanations (the board's requests and answers-only ones), in the request
+    controls and from _initial_completion_budget_tokens, which the
+    supervisor's and the resume sidecar's fingerprints both call."""
     from policybench.eval_no_tools import _initial_completion_budget_tokens
 
     for variable_count in (1, 3, 16, 20):
@@ -4117,8 +4120,9 @@ def test_a_gemini_card_starting_at_its_ceiling_never_escalates(
     mock_completion, mini_scenario, monkeypatch
 ):
     """A first request at the ceiling is the only rung: a length finish with
-    the outputs missing is billed once, then those outputs are recorded as
-    budget_exhausted_at_ceiling with no repair request."""
+    the outputs missing ends after one request, with no escalation and no
+    repair request, and those outputs are recorded as
+    budget_exhausted_at_ceiling."""
     from policybench.model_cards import MODEL_CARDS, ModelCard
 
     model_id = "gemini/gemini-capped-test"
