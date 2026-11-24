@@ -1,5 +1,6 @@
 """AI-alone evaluation using LiteLLM (no tools provided)."""
 
+import copy
 import functools
 import hashlib
 import json
@@ -1264,19 +1265,69 @@ def _request_wall_timeout_seconds(request_kwargs: dict) -> float:
     )
 
 
+def _litellm_call_kwargs(request_kwargs: dict) -> dict:
+    """Return the keyword arguments to hand LiteLLM for one call.
+
+    With no key pinned, a call that misses the cache and goes on to store its
+    response makes LiteLLM compute its cache key twice from the arguments it
+    is given: once to look a stored answer up before the call, and again to
+    store the response after it. In between it can rewrite those arguments in
+    place. For the board's
+    ``gemini/`` function tools, LiteLLM 1.95.0 removes
+    ``additionalProperties: false`` from each object in the schema and the
+    integer ``enum: [0, 1]`` of the binary outputs (it keeps an ``enum`` only
+    on a string field, or where an ``anyOf`` allows a string). The response is
+    then stored under a key that no freshly built request looks up, and a
+    re-sent request is paid for again.
+
+    Two things prevent that. LiteLLM gets a deep copy, so the caller's request
+    stays as built and a retry sends the same request. And while the disk
+    cache is on, ``cache_key`` pins the key of the request as built, which
+    LiteLLM then uses for the lookup and for the store.
+
+    The harness sends one user message through a synchronous, non-streaming
+    ``completion`` call or a native ``responses`` call. For those requests the
+    pinned key is the key LiteLLM looks up by itself, so a freshly built
+    request finds every answer LiteLLM stored under the key it looked up, as
+    before the pin. The pin does not reach three things:
+
+    - Answers that ``gemini/`` tool requests stored before the pin. They sit
+      under the rewritten schema's key. A freshly built request never found
+      them. A retry that reused a request object LiteLLM had already
+      rewritten could; the deep copy now leaves that object as built, so the
+      retry pins the as-built key and no longer finds them. A request built
+      with the rewritten schema still pins the rewritten key.
+    - A request LiteLLM normalizes before its own lookup, such as a chat
+      request to a target other than Gemini whose tool-call ids carry a
+      Gemini thought signature, which LiteLLM strips first. The pin is taken
+      before that, so it is not the key LiteLLM would compute.
+    - A ``responses`` call LiteLLM bridges through ``completion``. Both calls
+      would get the same pinned key.
+
+    No caller sends the last two with the cache on.
+    """
+    call_kwargs = copy.deepcopy(request_kwargs)
+    if litellm.cache is not None and "cache_key" not in call_kwargs:
+        call_kwargs["cache_key"] = litellm.cache.get_cache_key(**call_kwargs)
+    return call_kwargs
+
+
 def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
     """Run one LiteLLM request with a process-local wall-clock timeout.
 
     Some provider clients can outlive the configured request timeout. The CLI
     runs requests on the main thread, so SIGALRM gives the runner a last-resort
     escape hatch while preserving normal behavior in non-main-thread contexts.
+
+    LiteLLM never gets the caller's own request: see ``_litellm_call_kwargs``.
     """
+    call_kwargs = _litellm_call_kwargs(request_kwargs)
     if (
         threading.current_thread() is not threading.main_thread()
         or not hasattr(signal, "SIGALRM")
         or not hasattr(signal, "setitimer")
     ):
-        return request_fn(**request_kwargs)
+        return request_fn(**call_kwargs)
 
     wall_timeout_seconds = _request_wall_timeout_seconds(request_kwargs)
     previous_handler = signal.getsignal(signal.SIGALRM)
@@ -1290,7 +1341,7 @@ def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
     signal.signal(signal.SIGALRM, _raise_timeout)
     signal.setitimer(signal.ITIMER_REAL, wall_timeout_seconds)
     try:
-        return request_fn(**request_kwargs)
+        return request_fn(**call_kwargs)
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, previous_handler)
