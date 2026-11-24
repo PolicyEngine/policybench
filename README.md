@@ -153,6 +153,64 @@ policybench eval-no-tools-repeated -n 100 --seed 42 --repeats 3 -o results/local
 policybench analyze --runs-dir results/local/no_tools/runs --output-dir results/local/analysis
 ```
 
+Each repeat asks the models again. The command keeps the LiteLLM disk cache on,
+but each repeat looks up and stores its answers under its own cache namespace
+(`repeat=run_000`, `repeat=run_001`, ...), so no repeat looks up another
+repeat's answers, or those of an `eval-no-tools` run. The namespace is set on
+the cache of the whole Python process, which the command has to itself; code
+that calls `run_repeated_no_tools_eval` must run no other evaluation in the
+same process meanwhile, and must not call `enable_cache()` or assign
+`litellm.cache` while a repeat runs. A repeat that ends to find the cache
+replaced or its namespace changed raises an error naming its file, unless it is
+already raising with its own error; use a new output directory then, since a
+rerun into the same one would keep that file's rows.
+
+Running the command again reuses what each repeat already has. Into the same
+output directory, a repeat resumes from its CSV before it consults the cache.
+The batch runner keeps each household for which the file has a row for every
+requested output, with no infrastructure error (and an explanation column when
+explanations are on), even if some of those rows hold no parsed answer; it asks
+again for the other households. With `--single-output` it keeps every row
+without an infrastructure error, provided the file has `model`, `scenario_id`,
+`variable` and `prediction` columns, and an explanation column when
+explanations are on; otherwise it keeps none. Into a new output directory with
+the same cache directory, a repeat looks for its answers under its own
+namespace and asks the model for those the cache does not find. A household's
+first-round requests (its first request, or each explanation chunk) are the
+same every time, so the cache finds their answers when LiteLLM computes the
+same key for the rebuilt request's lookup as for the original's store (not so
+for a `gemini/` tool request unless the harness pins its key) and the entry is
+still there (LiteLLM's disk cache drops the oldest entries past 1 GiB). A
+repair or explanation-only request is built from the answers before it, so the
+cache finds its answer only when the rebuilt request comes out the same. To
+draw a new, independent set of repeats, use a new output directory and point
+`POLICYBENCH_CACHE_DIR` at a new directory.
+
+After each repeat the command prints how many provider responses and cache
+replays the repeat's rows record and, when it kept rows from an existing file,
+how many of those the kept rows recorded when they were written.
+
+Before its first request and after each repeat, the command checks every CSV
+file then in the output directory, whoever wrote it (`analyze --runs-dir` reads
+them all). A cache replay returns the stored response with its id (the
+provider's, or one LiteLLM generated when the provider gave none), so two files
+whose requests got the same model and response id got one answer twice, and the
+command then stops with an error naming the files. The responses of a file that
+holds rows are the `provider_response_id` of its rows (the first response of
+each request group: a household, or one of its outputs with `--single-output`)
+and every response its spend ledger (`run_000.csv.spend.jsonl`, ...) records
+for that path, replays included, even for rows a resume replaced or a deleted
+file held; the model is the model's name in the file, or the model id the
+ledger records. It also stops at a file with answered rows but no response id
+(written before the column was added, or cut short by an interrupted write),
+which it cannot check, and at a CSV file it cannot read. Use a new output
+directory then. Without a readable ledger the check sees only each request
+group's first response under the file's model name, so a replayed later
+response, or one model under two names, can go unseen. The check reads the
+directory as it is when it runs: a file written while it reads, or after the
+last check, is not checked, so run nothing else into the output directory while
+the command runs.
+
 `policybench reference-outputs` writes PolicyEngine reference outputs, not
 administrative truth. It also writes `results/local/scenarios.csv`, and the eval
 commands reuse that manifest by default instead of regenerating households from

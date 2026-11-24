@@ -3527,11 +3527,23 @@ def _output_metadata_path(output_path: str | None) -> Path | None:
     return Path(f"{output_path}.meta.json")
 
 
+def _response_id_or_none(value: str) -> str | None:
+    """A response id read from a CSV cell, kept as written.
+
+    An id such as ``NA`` or ``null`` is an id; only an empty cell is none.
+    """
+    return value or None
+
+
+# Read a CSV's response ids as written rather than as pandas' missing values.
+_RESPONSE_ID_CONVERTERS = {"provider_response_id": _response_id_or_none}
+
+
 def _read_existing_output(path: Path) -> pd.DataFrame | None:
     if not path.exists() or path.stat().st_size == 0:
         return None
     try:
-        return pd.read_csv(path)
+        return pd.read_csv(path, converters=_RESPONSE_ID_CONVERTERS)
     except pd.errors.EmptyDataError:
         return None
 
@@ -4352,6 +4364,302 @@ def run_no_tools_single_output_eval(
     return df
 
 
+def _repeat_cache_namespace(base: str | None, run_id: str) -> str:
+    """The disk-cache namespace of one repeat of a repeated run."""
+    return f"{base}:repeat={run_id}" if base else f"repeat={run_id}"
+
+
+# Held while a repeat runs. The cache's namespace is process-wide, so two
+# repeats running at once in one process would share it.
+_REPEAT_NAMESPACE_LOCK = threading.Lock()
+# What a repeat finds when something removed the cache's namespace attribute.
+_NO_NAMESPACE = object()
+
+
+class _OwnCacheNamespace:
+    """Give one repeat its own LiteLLM disk-cache namespace while it runs.
+
+    Every repeat builds the same first-round requests from the same inputs,
+    and LiteLLM keys its disk cache on the request, so without this the cache
+    the CLI turns on can answer repeats 2..N with repeat 1's responses.
+    LiteLLM prefixes each key it computes, for the lookup and for the store,
+    with the cache's ``namespace`` attribute, read on each call
+    (``Cache._add_namespace_to_cache_key`` in LiteLLM 1.95.0), unless the
+    request names its own namespace (in ``cache`` or
+    ``metadata["redis_namespace"]``) or brings its own ``cache_key``. The one
+    namespace the harness puts on a request, for an effort override
+    (``_effort_cache_namespace``), is built from the attribute while the
+    repeat runs, so it keeps the repeat.
+
+    So a repeat looks up and stores its answers under its own namespace,
+    which no other repeat of its set uses, and a rerun of the same repeat on
+    the same cache looks up under the namespace that repeat stored under. (A
+    second set run on the same cache directory shares the first set's
+    namespaces repeat by repeat; that is what lets a rerun replay.) The rerun
+    replays an answer only if LiteLLM computes the same key for the rebuilt
+    request's lookup as it did for the original's store: a freshly built
+    request that LiteLLM rewrites between its lookup and its store (a
+    ``gemini/`` tool request whose key the harness leaves to LiteLLM) does
+    not find its answer, in a repeat or out of one. A household's
+    first-round requests (its first request, or each explanation chunk) are
+    rebuilt from the same inputs every time. A follow-up request is built
+    from the answers before it (a repair round from the outputs they left
+    out, an explanation-only request from their values), so a rerun rebuilds
+    the same follow-up only where those answers lead to it again.
+
+    The namespace is an attribute of the cache, which is process-wide, so a
+    repeat must be the only evaluation in its process (the CLI runs one),
+    and nothing may call ``enable_cache()`` or assign ``litellm.cache`` while
+    it runs: any other request sent while a repeat runs uses the repeat's
+    namespace, and a replaced cache gives the repeat's later requests
+    another namespace. Entering a repeat while another runs raises
+    RuntimeError, and a repeat that cannot set its namespace releases the
+    lock before it raises. A repeat that ends to find ``litellm.cache``
+    replaced, or its namespace changed or removed, puts the namespace back
+    and raises RuntimeError naming ``output_name``, whose rows may hold
+    answers looked up under another namespace and which a rerun into the
+    same directory would keep, unless the repeat is already raising, when
+    its own error goes on. The check runs only when the repeat ends. Without
+    a cache the namespace is left alone.
+    """
+
+    def __init__(self, run_id: str, output_name: str | None = None) -> None:
+        self._run_id = run_id
+        self._output_name = output_name
+        self._cache = None
+        self._base: str | None = None
+        self._namespace: str | None = None
+
+    def __enter__(self) -> None:
+        if not _REPEAT_NAMESPACE_LOCK.acquire(blocking=False):
+            raise RuntimeError(
+                f"Cannot start repeat {self._run_id}: another repeat is running "
+                "in this process, and the two would share one cache namespace."
+            )
+        try:
+            self._cache = litellm.cache
+            if self._cache is not None:
+                self._base = self._cache.namespace
+                self._namespace = _repeat_cache_namespace(self._base, self._run_id)
+                self._cache.namespace = self._namespace
+        except BaseException:
+            # Python calls no __exit__ after a failed __enter__.
+            _REPEAT_NAMESPACE_LOCK.release()
+            raise
+
+    def __exit__(self, exc_type, *_exc) -> None:
+        try:
+            changed = litellm.cache is not self._cache
+            if self._cache is not None:
+                found = getattr(self._cache, "namespace", _NO_NAMESPACE)
+                self._cache.namespace = self._base
+                changed = changed or found != self._namespace
+        finally:
+            _REPEAT_NAMESPACE_LOCK.release()
+        if changed and exc_type is None:
+            output = (
+                f" Use a new output directory: a rerun into this one would keep "
+                f"{self._output_name}'s rows, which may hold answers looked up "
+                "under another namespace."
+                if self._output_name
+                else ""
+            )
+            raise RuntimeError(
+                "The disk cache was replaced, or its namespace changed, while "
+                f"repeat {self._run_id} ran, so its requests may not have used "
+                f"its own namespace.{output} Run nothing else in this process "
+                "while a repeat runs, and do not call enable_cache() or assign "
+                "litellm.cache."
+            )
+
+
+def _response_sources(
+    frame: pd.DataFrame, single_output: bool = False
+) -> tuple[int, int, int]:
+    """Where the responses behind a run's rows came from.
+
+    A request group is what one logical request answers: a model and a
+    household in the batch runner, and also an output in the single-output
+    runner. Every row of a group carries the group's counts. Returns the
+    responses the provider answered and the responses the disk cache
+    replayed, summed over the groups that record both counts, and the number
+    of groups that lack either count.
+    """
+    if frame.empty:
+        return 0, 0, 0
+    unit = (
+        ["model", "scenario_id", "variable"]
+        if single_output
+        else ["model", "scenario_id"]
+    )
+    groups = frame.drop_duplicates(unit)
+    if not {"live_calls", "cache_hit_calls"} <= set(groups.columns):
+        return 0, 0, len(groups)
+    live = pd.to_numeric(groups["live_calls"], errors="coerce")
+    replayed = pd.to_numeric(groups["cache_hit_calls"], errors="coerce")
+    unrecorded = live.isna() | replayed.isna()
+    return (
+        int(live[~unrecorded].sum()),
+        int(replayed[~unrecorded].sum()),
+        int(unrecorded.sum()),
+    )
+
+
+# The files the check below reads: every CSV in the output directory, as
+# ``load_repeated_predictions`` (``analyze --runs-dir``) does.
+_RUNS_DIR_FILES = "*.csv"
+
+
+def _ledger_responses(csv_path: Path) -> tuple[set[tuple[str, str]], dict[str, str]]:
+    """The responses a CSV file's spend ledger records, and its model ids.
+
+    Returns the (model id, response id) pairs of every request the ledger
+    records a response for, replays included, and the model id it records
+    for each model name the file's rows use. The ledger records the requests
+    made for the file's path, including those of rows a resume replaced or a
+    deleted file held. A ledger that is absent, cannot be read, or lost a
+    record records less.
+    """
+    try:
+        records = read_spend_ledger(spend_ledger_path(csv_path))
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError):
+        # ValueError covers json's limits (an over-long integer) as well as
+        # JSONDecodeError on a line read_spend_ledger does not skip.
+        return set(), {}
+    responses: set[tuple[str, str]] = set()
+    model_ids: dict[str, str] = {}
+    for record in records:
+        name = record.get("model")
+        model_id = record.get("model_id") or name
+        if not isinstance(model_id, str) or not model_id:
+            continue
+        if isinstance(name, str) and name:
+            model_ids.setdefault(name, model_id)
+        response_id = record.get("provider_response_id")
+        if isinstance(response_id, str) and response_id:
+            responses.add((model_id, response_id))
+    return responses, model_ids
+
+
+def _refuse_shared_responses(output_path: Path) -> None:
+    """Refuse a directory where two CSV files hold the same provider response.
+
+    A response is a model and a response id (the provider's id, or one
+    LiteLLM generated when the provider gave none), and a cache replay
+    returns the stored response with its id. So two files whose requests got
+    the same model and response id got one answer twice, whatever wrote
+    them. The responses of each CSV file that holds rows are:
+
+    - the ``provider_response_id`` of its rows: the first id among the
+      responses a row's request group got (a household, or one of its
+      outputs with ``single_output``);
+    - every response its spend ledger (``<file>.spend.jsonl``) records for
+      the requests made for that path, replays included, written by this
+      code and by the code since ea67093d. That includes requests of rows a
+      resume replaced or a deleted file held.
+
+    A row's response counts under its model name and under its model id:
+    the one the ledger records for the name, else the one ``MODELS`` gives
+    it, else the name. A ledger's response counts under the model id it
+    records. So the check finds every pair the CSV rows alone would show,
+    and more. Without a readable ledger it sees only each request group's
+    first id, so a replayed later response (a later explanation chunk, or a
+    follow-up), or one model under two names ``MODELS`` does not know, goes
+    unseen.
+
+    A row that holds an answer (or may: the file has no prediction column)
+    but no id cannot be checked, so a file holding one is refused; code from
+    before the column was added (c7bf2db0), or a write cut short, leaves such
+    rows. So is a CSV file that cannot be read. The check reads the
+    directory as it is when it runs.
+    """
+    columns = {"model", "prediction", "provider_response_id"}
+    holders: dict[tuple[str, str], str] = {}
+    shared: dict[tuple[str, str], set[str]] = {}
+    for path in sorted(output_path.glob(_RUNS_DIR_FILES)):
+        try:
+            frame = pd.read_csv(
+                path,
+                dtype={"model": str, "prediction": str},
+                usecols=lambda name: name in columns,
+                converters=_RESPONSE_ID_CONVERTERS,
+            )
+        except pd.errors.EmptyDataError:
+            continue
+        except (OSError, UnicodeDecodeError, pd.errors.ParserError) as error:
+            raise ValueError(
+                f"{path} cannot be read ({error}), so this command cannot check "
+                "that its rows are not another repeat's answers. Use a new "
+                "output directory."
+            ) from error
+        if frame.empty:
+            continue
+        ids = frame.get("provider_response_id", pd.Series(pd.NA, index=frame.index))
+        answered = (
+            frame["prediction"].notna()
+            if "prediction" in frame.columns
+            else pd.Series(True, index=frame.index)
+        )
+        unchecked = int((answered & ids.isna()).sum())
+        if unchecked:
+            hold = (
+                "hold an answer"
+                if "prediction" in frame.columns
+                else "may hold an answer (the file has no prediction column)"
+            )
+            raise ValueError(
+                f"{path} has {unchecked} rows that {hold} but no provider "
+                "response id, so this command cannot check that they are not "
+                "another repeat's answers. Use a new output directory."
+            )
+        responses, model_ids = _ledger_responses(path)
+        names = frame.get("model", pd.Series("", index=frame.index)).fillna("")
+        for name, response_id in zip(names[ids.notna()], ids[ids.notna()]):
+            # Under the name too, so files that agree on a name match whatever
+            # their ledgers record.
+            responses.add((name, response_id))
+            model = model_ids.get(name) or MODELS.get(name) or name
+            responses.add((model, response_id))
+        for key in responses:
+            holder = holders.setdefault(key, path.name)
+            if holder != path.name:
+                shared.setdefault((holder, path.name), set()).add(key[1])
+    if shared:
+        pairs = "; ".join(
+            f"{first} and {second}: {len(response_ids)}"
+            for (first, second), response_ids in sorted(shared.items())
+        )
+        raise ValueError(
+            f"CSV files in {output_path} hold the same provider responses, in "
+            f"their rows or their spend ledgers (same model and response id; "
+            f"{pairs}), so each pair got one answer twice and cannot be two "
+            "independent repeats. Use a new output directory."
+        )
+
+
+def _rows_kept_on_resume(
+    run_output_path: Path,
+    scenarios: list[Scenario],
+    programs: list[str] | None,
+    include_explanations: bool,
+    single_output: bool,
+) -> pd.DataFrame:
+    """The rows of an existing repeat file that its runner keeps, asking
+    nothing for them: the runner's own loader, given what the runner gives it."""
+    if single_output:
+        rows, _ = _load_existing_single_output_rows(
+            str(run_output_path), include_explanations=include_explanations
+        )
+    else:
+        rows, _ = _load_existing_rows(
+            str(run_output_path),
+            scenarios,
+            PROGRAMS if programs is None else programs,
+            include_explanations=include_explanations,
+        )
+    return pd.DataFrame(rows)
+
+
 def run_repeated_no_tools_eval(
     scenarios: list[Scenario],
     repeats: int,
@@ -4361,28 +4669,61 @@ def run_repeated_no_tools_eval(
     include_explanations: bool = True,
     single_output: bool = False,
 ) -> pd.DataFrame:
-    """Run repeated AI-alone evaluations, saving one artifact per run."""
+    """Run repeated AI-alone evaluations, saving one artifact per run.
+
+    Each repeat runs under its own disk-cache namespace
+    (``_OwnCacheNamespace``), so, with nothing else running in the process
+    and nothing replacing the cache, it never looks up another repeat's
+    answers, and a rerun on the same cache looks up only under its own
+    namespace. Before the first request and after each repeat, it checks the
+    CSV files then in the directory and raises ValueError where two hold the
+    same provider response, or a file holds an answer without an id or cannot
+    be read (``_refuse_shared_responses``). A file written while a check
+    reads the directory, or after the last one, is not checked.
+    After each repeat, one line says where its rows' responses came from, and
+    how many of them it kept from an existing file.
+    """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+    _refuse_shared_responses(output_path)
 
     frames = []
     for run_index in range(repeats):
         run_id = f"run_{run_index:03d}"
         run_output_path = output_path / f"{run_id}.csv"
         print(f"=== Starting {run_id} ===")
-        runner = run_no_tools_single_output_eval if single_output else run_no_tools_eval
-        frame = runner(
-            scenarios,
-            models=models,
-            programs=programs,
-            output_path=str(run_output_path),
-            run_id=run_id,
-            include_explanations=include_explanations,
+        kept = _rows_kept_on_resume(
+            run_output_path, scenarios, programs, include_explanations, single_output
         )
+        runner = run_no_tools_single_output_eval if single_output else run_no_tools_eval
+        with _OwnCacheNamespace(run_id, run_output_path.name):
+            frame = runner(
+                scenarios,
+                models=models,
+                programs=programs,
+                output_path=str(run_output_path),
+                run_id=run_id,
+                include_explanations=include_explanations,
+            )
         if "run_id" not in frame.columns:
             frame = frame.copy()
             frame["run_id"] = run_id
             frame.to_csv(run_output_path, index=False)
+        live, replayed, unrecorded = _response_sources(frame, single_output)
+        sources = f"{run_id}: provider responses {live}, cache replays {replayed}"
+        if unrecorded:
+            sources += f", request groups with no record {unrecorded}"
+        if not kept.empty:
+            # The runner sent nothing for these rows; their counts are what
+            # they recorded when the file was written.
+            kept_live, kept_replayed, _ = _response_sources(kept, single_output)
+            sources += (
+                f"; of these, kept from {run_output_path.name}: provider "
+                f"responses {kept_live}, cache replays {kept_replayed}"
+            )
+        print(sources)
+        # Another writer may have changed the directory while this repeat ran.
+        _refuse_shared_responses(output_path)
         frames.append(frame)
 
     if not frames:
