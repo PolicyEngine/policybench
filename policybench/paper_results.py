@@ -3637,6 +3637,12 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # gemini-models/introducing-gemini-4-hydrogen (2026-11-12: "Starting
     # today" in the Gemini API and the Gemini app), both read 2026-11-13.
     "gemini-4-hydrogen": "2026-11-12",
+    # aistudio.google.com/docs/changelog ("November 18, 2026": Gemini 4 Neon,
+    # gemini-4-neon, generally available, on the paid tier) and blog.google/
+    # innovation-and-ai/models-and-research/gemini-models/
+    # introducing-gemini-4-neon (2026-11-18: "rolling out today in the Gemini
+    # API in Google AI Studio"), both read 2026-11-19.
+    "gemini-4-neon": "2026-11-18",
     # blog.google gemini-3-1-flash-lite; siliconangle.com 2026-03-03
     "gemini-3.1-flash-lite-preview": "2026-03-03",
     # openai.com/index/introducing-gpt-5-4-mini-and-nano; 9to5mac 2026-03-17

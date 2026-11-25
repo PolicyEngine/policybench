@@ -1061,8 +1061,15 @@ def _uncapped_completion_controls(
     include_explanations: bool = True,
     variables: list[str] | None = None,
 ) -> dict:
+    card = card_for(model_id)
     if model_id.startswith("gemini/"):
-        if model_id == "gemini/gemini-3.1-pro-preview":
+        cap = GEMINI_MAX_COMPLETION_TOKENS_CAP
+        if card is not None and card.completion_token_cap is not None:
+            # A gemini/ card that sets completion_token_cap starts there, as
+            # a thinking-budget card does in the branch below (base and cap
+            # both). Every other gemini/ id keeps the family's 16,384.
+            base_tokens = cap = card.completion_token_cap
+        elif model_id == "gemini/gemini-3.1-pro-preview":
             base_tokens = GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS
         else:
             base_tokens = GEMINI_JSON_MAX_COMPLETION_TOKENS
@@ -1071,10 +1078,9 @@ def _uncapped_completion_controls(
                 base_tokens,
                 variables,
                 include_explanations,
-                cap=GEMINI_MAX_COMPLETION_TOKENS_CAP,
+                cap=cap,
             )
         }
-    card = card_for(model_id)
     # A thinking-budget card outranks the legacy xai/ family branch:
     # grok-4.5 reasons by default (14k tokens on the 16-variable probe),
     # while grok-4.3 has no card and keeps the flat family budget.
