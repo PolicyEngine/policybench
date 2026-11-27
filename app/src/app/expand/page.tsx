@@ -163,10 +163,9 @@ export default function ExpandPage() {
           </div>
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">
             Funders buy coverage: households, programs, regions, refresh
-            cadence. Funding never buys scores, rankings, or placement. No
-            model vendor pays for evaluation — vendor funding for separate
-            projects never touches the benchmark. Every slice stays public —
-            prompts, references, predictions, and diagnoses.
+            cadence. Funding never buys scores, rankings, or placement.
+            Every slice stays public — prompts, references, predictions, and
+            diagnoses.
           </p>
         </div>
 
