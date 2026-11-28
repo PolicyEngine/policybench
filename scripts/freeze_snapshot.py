@@ -45,6 +45,7 @@ import csv
 import gzip
 import hashlib
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -940,6 +941,60 @@ def household_impact_summary_by_model(
     )
 
 
+def require_published_costs(country_payload: dict) -> dict[str, float]:
+    """Each no-tools board model's published ``costUsd``; refuse a board
+    that lacks one.
+
+    ``analysis.model_cost_latency`` leaves ``costUsd`` out when a model's
+    summed cost is empty (no row records one, or recorded costs of +inf and
+    -inf sum to NaN) and either the model has no price override or
+    ``analysis._override_fallback_cost`` returns no cost for its rows. The
+    report's published total sums every board model's cost, and the paper's
+    render asserts that the models with a cost dash are its zero-cost
+    models, so the freeze stops and names the models rather than publish a
+    board with a cost missing. A cost is a finite number, zero or more.
+    """
+    rows = [
+        row for row in country_payload["modelStats"] if row["condition"] == "no_tools"
+    ]
+
+    def is_cost(value: object) -> bool:
+        return (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            and value >= 0
+        )
+
+    absent = sorted(str(row["model"]) for row in rows if row.get("costUsd") is None)
+    invalid = sorted(
+        str(row["model"])
+        for row in rows
+        if row.get("costUsd") is not None and not is_cost(row["costUsd"])
+    )
+    problems = []
+    if absent:
+        problems.append(
+            f"no costUsd for {', '.join(absent)}: analysis.model_cost_latency "
+            "leaves a cost out when no row of the model records one and the "
+            "model has no price override or the override cannot price its "
+            "rows. Rerun or replay the model so its rows record their costs, "
+            "or carry a cost a release decision supplies (as the release "
+            "drivers' CARRIED_USAGE does), then export again"
+        )
+    if invalid:
+        problems.append(
+            "a costUsd that is not a finite number, zero or more, for "
+            f"{', '.join(invalid)}: check the costs and token counts those "
+            "models' rows record, then export again"
+        )
+    if problems:
+        raise SystemExit(
+            "The published payload has " + ". It also has ".join(problems) + "."
+        )
+    return {row["model"]: row["costUsd"] for row in rows}
+
+
 def regenerate_analysis(dest_dir: Path) -> None:
     """Run the analyze CLI into ``dest_dir`` and add the impact summary.
 
@@ -994,12 +1049,7 @@ def regenerate_analysis(dest_dir: Path) -> None:
     report_tables["bounded_summary"] = report_tables["model_summary"][
         ["model", "bounded_score", "amount_accuracy", "participation_accuracy"]
     ].sort_values("model")
-    country_payload = read_run_payload(RUN_DEST)
-    published_model_costs = {
-        row["model"]: row["costUsd"]
-        for row in country_payload["modelStats"]
-        if row["condition"] == "no_tools"
-    }
+    published_model_costs = require_published_costs(read_run_payload(RUN_DEST))
     (dest_dir / "report.md").write_text(
         render_markdown_report(
             report_tables, published_model_costs=published_model_costs
@@ -2060,6 +2110,11 @@ def main() -> None:
     # Dated from the rows freeze_run gzips into the snapshot, before any write.
     response_window = model_response_window(
         SOURCE_US / "predictions.csv", MODEL_RESPONSE_START, MODEL_RESPONSE_DATE
+    )
+    # regenerate_analysis needs every board model's cost; check it before
+    # the steps below delete and rewrite the snapshot.
+    require_published_costs(
+        json.loads(PUBLISHED_DASHBOARD_SOURCE.read_bytes())["countries"]["us"]
     )
 
     remove_stale_artifacts()

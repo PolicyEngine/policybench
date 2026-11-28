@@ -9,6 +9,7 @@ import pandas as pd
 
 from policybench.config import (
     BINARY_PROGRAMS,
+    GPT_RESPONSES_MODELS,
     PRICE_OVERRIDES_PER_1M,
     SEED,
 )
@@ -1456,6 +1457,127 @@ def household_latency_seconds(predictions: pd.DataFrame) -> pd.Series:
     )
 
 
+# The row columns that count the provider responses a row's usage sums:
+# eval_no_tools.NO_TOOLS_CALL_PROVENANCE_COLUMNS without the time (analysis
+# does not import eval_no_tools, which imports litellm).
+RESPONSE_COUNT_COLUMNS = ("live_calls", "cache_hit_calls")
+
+
+def _override_fallback_cost(
+    rows: pd.DataFrame, model: str, rates: dict[str, float]
+) -> float | None:
+    """One model's cost from its price override, or None when it is unknown.
+
+    The rows priced are those that recorded both prompt and completion token
+    counts. A row missing either count adds nothing, and a model with no row
+    to price (Claude Fable 5's frozen board rows record no usage) gets no
+    cost, not $0.
+
+    A row's counts can sum several provider responses (a household's
+    re-requests and repair rounds in ``eval_no_tools.run_no_tools_eval``, a
+    batch cell's repair rounds), and can be an equal share of counts that
+    several rows divide. ``live_calls`` plus ``cache_hit_calls`` counts the
+    responses a row sums, or more when a response reported no usage.
+
+    - An override with only input and output rates prices the rows' summed
+      prompt tokens, cached ones included, at the input rate and their
+      completion tokens at the output rate. The sums take in every response
+      a row adds up, including one that reported a prompt count and no
+      completion count, or the reverse, which
+      ``eval_no_tools._reconstruct_token_cost`` would not price.
+    - The Responses-API GPT models (``GPT_RESPONSES_MODELS``) charge every
+      token of a request above 272k prompt tokens at a higher rate. A row
+      holds a share of its responses' usage, and no row records how many
+      rows share a response, so a row at or below 272k does not show which
+      rate its request paid: a sum over a household's rows bounds a
+      request's prompt only when the frame holds every row the request was
+      split among, unrepaired, which the rows cannot show. A row that
+      records one response and a prompt share above 272k does prove the
+      higher rate for that response, and pricing the model that way would
+      need every priced row to prove it. The fill does not attempt it:
+      these models get no cost.
+    - An override with a ``cache_read`` or ``cache_write`` rate prices cached
+      and cache-write tokens at those rates (a rate it does not list is the
+      input rate), bounding each row's counts by its prompt count as the
+      reconstruction bounds a response's. The bound of a sum is not the sum
+      of the bounds, so it needs rows that each hold one response's usage:
+      every priced row must record one response (``live_calls`` and
+      ``cache_hit_calls`` of 1 and 0, or 0 and 1), a cached count, and, if
+      the override lists a cache-write rate, a cache-write count (with no
+      such rate, cache-write tokens price at the input rate like uncached
+      ones, so their count changes nothing). A row's counts are then that
+      response's counts divided among the rows sharing it, and each row
+      prices to its share of the response's cost. Otherwise the model gets
+      no cost: an empty count may be one the provider did not report or a
+      column another model's rows brought into the frame, and an empty
+      response count may be a row written before the column existed.
+
+    The rates are the override's, as the reconstruction applies an
+    override: at any prompt length, since the GPT long-context rate is the
+    only length tier it applies to an override (the Claude Haiku 5.5 entry
+    lists the rates for prompts up to 100,000 tokens).
+    """
+    if model in GPT_RESPONSES_MODELS:
+        return None
+    token_columns = ["prompt_tokens", "completion_tokens"]
+    if not set(token_columns) <= set(rows.columns):
+        return None
+    priced = rows.dropna(subset=token_columns)
+    if priced.empty:
+        return None
+    # The same grouped sum the published fallback costs were computed from,
+    # so an input-and-output override reproduces them to the bit. The model's
+    # own group: pandas 2 also gives a categorical column's other categories
+    # a group (all zero) unless observed is set.
+    sums = (
+        priced.groupby("model", observed=True)[token_columns]
+        .sum()
+        .loc[priced["model"].iloc[0]]
+    )
+    prompt = float(sums["prompt_tokens"])
+    completion = float(sums["completion_tokens"])
+    if "cache_read" not in rates and "cache_write" not in rates:
+        return prompt * rates["input"] / 1e6 + completion * rates["output"] / 1e6
+    # The cached count prices at the cache-read rate (the input rate when
+    # the override lists none) and bounds the cache-write count; with no
+    # cache-write rate, cache-write tokens price
+    # at the input rate like uncached ones, so their count changes nothing.
+    counts = ["cached_prompt_tokens"]
+    if "cache_write" in rates:
+        counts.append("cache_write_prompt_tokens")
+    needed = [*counts, *RESPONSE_COUNT_COLUMNS]
+    if not set(needed) <= set(priced.columns) or priced[needed].isna().any().any():
+        return None
+    # One response, live or replayed: the counts are (1, 0) or (0, 1). A sum
+    # of 1 would also pass (-1, 2) or (0.5, 0.5), which no runner writes. The
+    # counts compare as floats, so a 1.0 (a count column with an empty cell
+    # elsewhere can be a float column) still passes.
+    live, replayed = (priced[column].astype(float) for column in RESPONSE_COUNT_COLUMNS)
+    one_response = ((live == 1) & (replayed == 0)) | ((live == 0) & (replayed == 1))
+    if not one_response.all():
+        return None
+
+    def recorded(column: str) -> pd.Series:
+        if column not in counts:
+            return pd.Series(0.0, index=priced.index)
+        return priced[column].astype(float).clip(lower=0.0)
+
+    row_prompt = priced["prompt_tokens"].astype(float)
+    cached = np.minimum(recorded("cached_prompt_tokens"), row_prompt)
+    cache_write = np.minimum(recorded("cache_write_prompt_tokens"), row_prompt - cached)
+    # Each row's uncached count is non-negative after the bounds. Summing the
+    # rows' counts, rather than subtracting the cache sums from the grouped
+    # prompt sum (the two sums round differently), keeps a fully cached
+    # prompt from pricing below zero.
+    uncached = row_prompt - cached - cache_write
+    return (
+        float(uncached.sum()) * rates["input"]
+        + float(cached.sum()) * rates.get("cache_read", rates["input"])
+        + float(cache_write.sum()) * rates.get("cache_write", rates["input"])
+        + completion * rates["output"]
+    ) / 1e6
+
+
 def model_cost_latency(
     predictions: pd.DataFrame,
     price_overrides: dict[str, dict[str, float]] | None = None,
@@ -1466,12 +1588,16 @@ def model_cost_latency(
     a per-household figure. Latency is the *median* per-household request-time —
     each household's calls summed, then the median across households — which is
     robust to the occasional rate-limit retry that inflates the mean. When a
-    model's reconstructed cost is missing (a provider preview model not yet in
-    litellm's price map), it is filled from ``price_overrides`` by pricing the
-    rows that recorded both prompt and completion token counts. A row missing
-    either count adds nothing, as ``eval_no_tools._reconstruct_token_cost``
-    prices no such row, and a model with no row to price (Claude Fable 5's
-    frozen board rows record no usage) gets no cost, not $0.
+    model's summed ``total_cost_usd`` is empty, :func:`_override_fallback_cost`
+    fills it from ``price_overrides`` in the cases that function lists, and
+    otherwise the model gets no cost and no ``costUsd`` key. The sum is empty
+    when no row records a cost, and also when the recorded costs include both
+    +inf and -inf, whose sum is NaN. The fill can be invoked
+    for a model whose run had a price for it: a batch cell merged from a
+    response that reported only a prompt count and a repair that reported
+    only a completion count holds both counts and no cost
+    (tests/test_cost_latency.py,
+    ``test_a_batch_cell_merged_from_two_partial_count_responses_invokes_the_fill``).
     """
     if predictions.empty or "model" not in predictions.columns:
         return {}
@@ -1483,28 +1609,15 @@ def model_cost_latency(
             household_latency_seconds(predictions).groupby("model").median()
         )
     overrides = price_overrides or {}
-    token_columns = ["prompt_tokens", "completion_tokens"]
-    priceable = pd.DataFrame(columns=token_columns)
-    if set(token_columns) <= set(predictions.columns):
-        priceable = (
-            predictions.dropna(subset=token_columns)
-            .groupby("model")[token_columns]
-            .sum()
-        )
     out: dict[str, dict[str, float]] = {}
     for _, row in usage.iterrows():
         model = str(row["model"])
         cost = row.get("total_cost_usd")
-        if (
-            (cost is None or pd.isna(cost))
-            and model in overrides
-            and row["model"] in priceable.index
-        ):
-            price = overrides[model]
-            prompt, completion = priceable.loc[row["model"], token_columns]
-            cost = (
-                float(prompt) * price["input"] / 1e6
-                + float(completion) * price["output"] / 1e6
+        if (cost is None or pd.isna(cost)) and model in overrides:
+            cost = _override_fallback_cost(
+                predictions.loc[predictions["model"] == row["model"]],
+                model,
+                overrides[model],
             )
         entry: dict[str, float] = {}
         if cost is not None and not pd.isna(cost):
